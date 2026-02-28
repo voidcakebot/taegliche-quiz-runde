@@ -75,7 +75,7 @@ async function handler(req,res){
       const character = String(url.searchParams.get('character') || '').trim();
       const q = await getDailyQuestion();
       const alreadyAnswered = character ? await storage.hasAnswered(character, q.key) : false;
-      return send(res,200,{ ok:true, question:{ key:q.key, prompt:q.prompt, options:q.options }, alreadyAnswered });
+      return send(res,200,{ ok:true, question:{ key:q.key, prompt:q.prompt, options:q.options, correctIndex:q.correctIndex }, alreadyAnswered });
     } catch {
       return send(res,500,{ok:false,error:'Konnte Tagesfrage nicht laden.'});
     }

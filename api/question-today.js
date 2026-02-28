@@ -8,6 +8,6 @@ module.exports = async function(req,res){
     const character = String(url.searchParams.get('character') || '').trim();
     const q = await getDailyQuestion();
     const alreadyAnswered = character ? await storage.hasAnswered(character, q.key) : false;
-    return res.json({ ok:true, question:{ key:q.key, prompt:q.prompt, options:q.options }, alreadyAnswered });
+    return res.json({ ok:true, question:{ key:q.key, prompt:q.prompt, options:q.options, correctIndex:q.correctIndex }, alreadyAnswered });
   } catch { res.statusCode=500; return res.json({ok:false,error:'Konnte Tagesfrage nicht laden.'}); }
 };

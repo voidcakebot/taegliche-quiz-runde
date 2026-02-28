@@ -117,8 +117,10 @@ async function startQuiz(){
   document.getElementById('qprompt').textContent=d.question.prompt;
   const qopts=document.getElementById('qopts'); qopts.innerHTML='';
   answered=false; left=20; correctIndex=-1; document.getElementById('qresult').textContent='';
+  correctIndex = Number(d.question.correctIndex);
   d.question.options.forEach((o,i)=>{const b=document.createElement('button'); b.className='btn opt'; b.textContent=o; b.onclick=()=>answer(i); qopts.appendChild(b);});
   if (d.alreadyAnswered) {
+    lockAndReveal();
     document.getElementById('qresult').textContent='Heute bereits beantwortet. Morgen ab 08:30 gibt es eine neue Frage.';
     return;
   }
@@ -134,18 +136,39 @@ function runTimer(){
   },1000);
 }
 
+function lockAndReveal(chosenIndex = null){
+  [...document.querySelectorAll('#qopts .opt')].forEach((b,i)=>{
+    b.disabled = true;
+    if(i===correctIndex){
+      b.classList.add('green');
+    } else if(chosenIndex !== null && i===chosenIndex){
+      b.style.background = '#6a1f2e';
+      b.style.borderColor = '#d94f64';
+    }
+  });
+}
+
 async function answer(choiceIndex){
-  if(answered) return; answered=true; clearInterval(timerInt);
+  if(answered) return;
+  answered=true;
+  clearInterval(timerInt);
   const r=await fetch('/api/answer',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({character:session.character,password:session.password,choiceIndex})});
-  const d=await r.json(); if(!r.ok){ document.getElementById('qresult').textContent=d.error||'Fehler'; return; }
-  correctIndex=d.correctIndex;
-  [...document.querySelectorAll('#qopts .opt')].forEach((b,i)=>{ if(i===correctIndex) b.classList.add('green'); if(i===choiceIndex && i!==correctIndex) b.style.borderColor='#d94f64'; b.disabled=true; });
-  document.getElementById('qresult').textContent=d.isCorrect?`Richtig! +1 Punkt (Gesamt: ${d.points})`:`Leider falsch. Kein Punkt.`;
+  const d=await r.json();
+  if(!r.ok){
+    if(d.error && d.error.includes('bereits beantwortet')) lockAndReveal(choiceIndex);
+    document.getElementById('qresult').textContent=d.error||'Fehler';
+    return;
+  }
+  correctIndex=Number(d.correctIndex);
+  lockAndReveal(choiceIndex);
+  document.getElementById('qresult').textContent=d.isCorrect?`Richtig! +1 Punkt (Gesamt: ${d.points})`:`Leider falsch. Kein Punkt. Richtige Antwort ist markiert.`;
   boot();
 }
 
 function revealNoPoint(){
-  answered=true; document.getElementById('qresult').textContent='Zeit abgelaufen – kein Punkt.';
+  answered=true;
+  lockAndReveal();
+  document.getElementById('qresult').textContent='Zeit abgelaufen – kein Punkt. Richtige Antwort ist markiert.';
 }
 
 function backHome(){ clearInterval(timerInt); document.getElementById('quiz').style.display='none'; document.getElementById('home').style.display='block'; boot(); }
