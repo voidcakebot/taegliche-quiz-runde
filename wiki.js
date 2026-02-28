@@ -41,11 +41,16 @@ function decodeHtml(str = '') {
     .replace(/&nbsp;/g, ' ');
 }
 
+function pickWeightedCategory() {
+  // 50% general knowledge, 25% history, 25% science
+  const r = Math.random();
+  if (r < 0.50) return 'general_knowledge';
+  if (r < 0.75) return 'history';
+  return 'science';
+}
+
 async function fromTheTriviaApi() {
-  const categories = [
-    'history', 'science', 'geography', 'film_and_tv', 'music', 'sport_and_leisure', 'general_knowledge'
-  ];
-  const c = categories[Math.floor(Math.random() * categories.length)];
+  const c = pickWeightedCategory();
   const url = `https://the-trivia-api.com/v2/questions?limit=1&categories=${encodeURIComponent(c)}&difficulties=easy,medium`;
   const r = await fetch(url, { headers: { accept: 'application/json' } });
   if (!r.ok) return null;
