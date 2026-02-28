@@ -104,7 +104,7 @@ async function loginAndGo(){
 async function startQuiz(){
   document.getElementById('home').style.display='none';
   document.getElementById('quiz').style.display='block';
-  const r=await fetch('/api/question/today?character='+encodeURIComponent(session.character));
+  const r=await fetch('/api/question-today?character='+encodeURIComponent(session.character));
   const d=await r.json(); if(!r.ok) return alert(d.error||'Fragefehler');
   document.getElementById('qprompt').textContent=d.question.prompt;
   const qopts=document.getElementById('qopts'); qopts.innerHTML='';
