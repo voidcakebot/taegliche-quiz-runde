@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tägliche Quiz Runde</title>
   <style>
+    *{box-sizing:border-box}
     body{margin:0;background:#141019;color:#f2ebff;font-family:system-ui,sans-serif}
     .wrap{max-width:980px;margin:0 auto;padding:16px}
     .top{background:#251a30;border:2px solid #4e3a63;border-radius:14px;padding:12px;text-align:center}
     .title{font-size:34px;font-weight:900;color:#e3c47f}
     .mode{display:flex;justify-content:center;gap:8px;margin:12px 0}
+    .mode .btn.active{border-color:#e3c47f;box-shadow:0 0 0 1px #000 inset}
     .btn{padding:10px 14px;border-radius:10px;border:2px solid #5c4474;background:#332447;color:#fff;font-weight:700;cursor:pointer}
     .btn.green{background:#2d8a4d;border-color:#4ac26d}
     .card{background:#23192c;border:2px solid #3b2b4a;border-radius:14px;padding:12px;margin-top:12px}
@@ -39,14 +41,14 @@
         <h3>Charakter wählen</h3>
         <div id="regChars" class="grid"></div>
         <label>Passwort</label><input id="regPw" type="password" maxlength="32" />
-        <div style="margin-top:10px"><button class="btn green" onclick="registerAndGo()">Los geht's</button></div>
+        <div style="margin-top:10px;display:flex;justify-content:center"><button class="btn green" onclick="registerAndGo()">Los geht's</button></div>
       </div>
 
       <div id="loginBox" style="display:none">
         <h3>Registrierten Charakter wählen</h3>
         <div id="loginChars" class="grid" style="justify-content:center"></div>
         <label>Passwort</label><input id="loginPw" type="password" maxlength="32" />
-        <div style="margin-top:10px"><button class="btn green" onclick="loginAndGo()">Los geht's</button></div>
+        <div style="margin-top:10px;display:flex;justify-content:center"><button class="btn green" onclick="loginAndGo()">Los geht's</button></div>
       </div>
 
       <h3>Leaderboard</h3>
@@ -64,9 +66,15 @@
     </section>
   </div>
 <script>
-let mode='reg', selectedReg=null, selectedLogin=null, session=null, timerInt=null, left=10, answered=false, correctIndex=-1;
+let mode='reg', selectedReg=null, selectedLogin=null, session=null, timerInt=null, left=20, answered=false, correctIndex=-1;
 
-function setMode(m){mode=m;document.getElementById('regBox').style.display=m==='reg'?'block':'none';document.getElementById('loginBox').style.display=m==='login'?'block':'none';}
+function setMode(m){
+  mode=m;
+  document.getElementById('regBox').style.display=m==='reg'?'block':'none';
+  document.getElementById('loginBox').style.display=m==='login'?'block':'none';
+  document.getElementById('mReg').classList.toggle('active', m==='reg');
+  document.getElementById('mLogin').classList.toggle('active', m==='login');
+}
 
 async function boot(){
   const r=await fetch('/api/bootstrap'); const d=await r.json();
@@ -108,7 +116,7 @@ async function startQuiz(){
   const d=await r.json(); if(!r.ok) return alert(d.error||'Fragefehler');
   document.getElementById('qprompt').textContent=d.question.prompt;
   const qopts=document.getElementById('qopts'); qopts.innerHTML='';
-  answered=false; left=10; correctIndex=-1; document.getElementById('qresult').textContent='';
+  answered=false; left=20; correctIndex=-1; document.getElementById('qresult').textContent='';
   d.question.options.forEach((o,i)=>{const b=document.createElement('button'); b.className='btn opt'; b.textContent=o; b.onclick=()=>answer(i); qopts.appendChild(b);});
   if (d.alreadyAnswered) {
     document.getElementById('qresult').textContent='Heute bereits beantwortet. Morgen ab 08:30 gibt es eine neue Frage.';
@@ -121,7 +129,7 @@ function runTimer(){
   clearInterval(timerInt);
   const bar=document.getElementById('tbar');
   timerInt=setInterval(()=>{
-    left--; document.getElementById('timerText').textContent=left+'s'; bar.style.width=Math.max(0,left*10)+'%';
+    left--; document.getElementById('timerText').textContent=left+'s'; bar.style.width=Math.max(0,(left/20)*100)+'%';
     if(left<=0){ clearInterval(timerInt); if(!answered){ revealNoPoint(); }}
   },1000);
 }
