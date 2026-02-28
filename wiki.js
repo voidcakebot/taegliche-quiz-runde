@@ -18,51 +18,80 @@ function berlinKeyNow() {
 
 function shuffle(a) {
   const x = [...a];
-  for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; }
+  for (let i = x.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [x[i], x[j]] = [x[j], x[i]];
+  }
   return x;
 }
 
-async function randomTitle() {
-  const u = 'https://en.wikipedia.org/w/api.php?action=query&list=random&rnnamespace=0&rnlimit=1&format=json';
-  const r = await fetch(u);
-  const j = await r.json();
-  return j?.query?.random?.[0]?.title || null;
+function decodeHtml(str = '') {
+  return String(str)
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&uuml;/g, 'ü')
+    .replace(/&ouml;/g, 'ö')
+    .replace(/&auml;/g, 'ä')
+    .replace(/&Uuml;/g, 'Ü')
+    .replace(/&Ouml;/g, 'Ö')
+    .replace(/&Auml;/g, 'Ä')
+    .replace(/&nbsp;/g, ' ');
 }
 
-async function fetchSummary(title) {
-  const t = encodeURIComponent(title);
-  const u = `https://en.wikipedia.org/api/rest_v1/page/summary/${t}`;
-  const r = await fetch(u, { headers: { 'accept': 'application/json' } });
+async function fromTheTriviaApi() {
+  const categories = [
+    'history', 'science', 'geography', 'film_and_tv', 'music', 'sport_and_leisure', 'general_knowledge'
+  ];
+  const c = categories[Math.floor(Math.random() * categories.length)];
+  const url = `https://the-trivia-api.com/v2/questions?limit=1&categories=${encodeURIComponent(c)}&difficulties=easy,medium`;
+  const r = await fetch(url, { headers: { accept: 'application/json' } });
+  if (!r.ok) return null;
+  const arr = await r.json();
+  const q = arr?.[0];
+  if (!q?.question?.text || !q?.correctAnswer || !Array.isArray(q?.incorrectAnswers)) return null;
+
+  const correct = decodeHtml(q.correctAnswer);
+  const options = shuffle([correct, ...q.incorrectAnswers.map(decodeHtml)]).slice(0, 4);
+  const correctIndex = options.findIndex((x) => x === correct);
+  if (correctIndex < 0) return null;
+
+  return {
+    prompt: decodeHtml(q.question.text),
+    options,
+    correctIndex,
+    sourceTitle: `TheTriviaAPI:${c}`,
+    createdAt: new Date().toISOString()
+  };
+}
+
+async function fromOpenTdb() {
+  const url = 'https://opentdb.com/api.php?amount=1&type=multiple&encode=url3986';
+  const r = await fetch(url);
   if (!r.ok) return null;
   const j = await r.json();
-  if (!j?.extract || !j?.title) return null;
-  return { title: j.title, extract: j.extract };
+  const item = j?.results?.[0];
+  if (!item?.question || !item?.correct_answer || !Array.isArray(item?.incorrect_answers)) return null;
+
+  const q = decodeURIComponent(item.question);
+  const correct = decodeURIComponent(item.correct_answer);
+  const options = shuffle([correct, ...item.incorrect_answers.map((x) => decodeURIComponent(x))]);
+  const correctIndex = options.findIndex((x) => x === correct);
+  if (correctIndex < 0) return null;
+
+  return {
+    prompt: q,
+    options,
+    correctIndex,
+    sourceTitle: `OpenTDB:${item.category || 'mixed'}`,
+    createdAt: new Date().toISOString()
+  };
 }
 
 async function generateQuestion() {
-  let summary = null;
-  for (let i=0;i<8 && !summary;i++) {
-    const t = await randomTitle();
-    if (!t) continue;
-    const s = await fetchSummary(t);
-    if (s && s.extract.length > 120) summary = s;
-  }
-  if (!summary) throw new Error('Could not generate question from Wikipedia');
-
-  const sentence = summary.extract.split('. ').slice(0,2).join('. ');
-  const prompt = `Aus welchem Wikipedia-Artikel stammt dieser Hinweis?\n\n"${sentence}"`;
-
-  const distractors = new Set();
-  while (distractors.size < 3) {
-    const t = await randomTitle();
-    if (!t) continue;
-    if (t.toLowerCase() === summary.title.toLowerCase()) continue;
-    distractors.add(t);
-  }
-
-  const options = shuffle([summary.title, ...distractors]);
-  const correctIndex = options.findIndex((o)=>o === summary.title);
-  return { prompt, options, correctIndex, sourceTitle: summary.title, createdAt: new Date().toISOString() };
+  return (await fromTheTriviaApi()) || (await fromOpenTdb()) || (() => { throw new Error('No quiz provider available'); })();
 }
 
 module.exports = { berlinKeyNow, generateQuestion };
