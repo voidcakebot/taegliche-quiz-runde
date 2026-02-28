@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tägliche Quiz Runde</title>
+  <style>
+    body{margin:0;background:#141019;color:#f2ebff;font-family:system-ui,sans-serif}
+    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    .top{background:#251a30;border:2px solid #4e3a63;border-radius:14px;padding:12px;text-align:center}
+    .title{font-size:34px;font-weight:900;color:#e3c47f}
+    .mode{display:flex;justify-content:center;gap:8px;margin:12px 0}
+    .btn{padding:10px 14px;border-radius:10px;border:2px solid #5c4474;background:#332447;color:#fff;font-weight:700;cursor:pointer}
+    .btn.green{background:#2d8a4d;border-color:#4ac26d}
+    .card{background:#23192c;border:2px solid #3b2b4a;border-radius:14px;padding:12px;margin-top:12px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+    .char{border:2px solid #56406d;border-radius:10px;padding:10px;text-align:center;cursor:pointer;background:#1a1321}
+    .char.active{border-color:#e3c47f}
+    .char.taken{opacity:.7}
+    input{width:100%;padding:9px;border-radius:8px;border:1px solid #4f3a60;background:#18111f;color:#fff}
+    .leader li{display:flex;justify-content:space-between;border-bottom:1px dashed #4c3961;padding:6px 0}
+    #quiz{display:none}
+    .timer{height:10px;background:#261d31;border:1px solid #584170;border-radius:999px;overflow:hidden;margin:8px 0}
+    .timer>div{height:100%;background:linear-gradient(90deg,#4fd475,#d2f27a);width:100%}
+    .opt{display:block;width:100%;text-align:left;margin:8px 0}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top"><div class="title">🧠 Tägliche Quiz Runde</div></div>
+
+    <section id="home" class="card">
+      <div class="mode">
+        <button id="mReg" class="btn" onclick="setMode('reg')">Registrieren</button>
+        <button id="mLogin" class="btn" onclick="setMode('login')">Login</button>
+      </div>
+
+      <div id="regBox">
+        <h3>Charakter wählen</h3>
+        <div id="regChars" class="grid"></div>
+        <label>Passwort</label><input id="regPw" type="password" maxlength="32" />
+        <div style="margin-top:10px"><button class="btn green" onclick="registerAndGo()">Los geht's</button></div>
+      </div>
+
+      <div id="loginBox" style="display:none">
+        <h3>Registrierten Charakter wählen</h3>
+        <div id="loginChars" class="grid" style="justify-content:center"></div>
+        <label>Passwort</label><input id="loginPw" type="password" maxlength="32" />
+        <div style="margin-top:10px"><button class="btn green" onclick="loginAndGo()">Los geht's</button></div>
+      </div>
+
+      <h3>Leaderboard</h3>
+      <ul id="leaderboard" class="leader"></ul>
+    </section>
+
+    <section id="quiz" class="card">
+      <h3>Tagesfrage</h3>
+      <div class="timer"><div id="tbar"></div></div>
+      <div id="timerText">10s</div>
+      <p id="qprompt"></p>
+      <div id="qopts"></div>
+      <p id="qresult"></p>
+      <button class="btn" onclick="backHome()">Zurück zur Startseite</button>
+    </section>
+  </div>
+<script>
+let mode='reg', selectedReg=null, selectedLogin=null, session=null, timerInt=null, left=10, answered=false, correctIndex=-1;
+
+function setMode(m){mode=m;document.getElementById('regBox').style.display=m==='reg'?'block':'none';document.getElementById('loginBox').style.display=m==='login'?'block':'none';}
+
+async function boot(){
+  const r=await fetch('/api/bootstrap'); const d=await r.json();
+  const reg=document.getElementById('regChars'); reg.innerHTML='';
+  const login=document.getElementById('loginChars'); login.innerHTML='';
+  d.characters.forEach(c=>{
+    const taken=d.taken.includes(c);
+    const rc=document.createElement('div'); rc.className='char'+(taken?' taken':''); rc.textContent=c;
+    if(!taken){rc.onclick=()=>{selectedReg=c; [...reg.children].forEach(x=>x.classList.remove('active')); rc.classList.add('active');};}
+    reg.appendChild(rc);
+    if(taken){ const lc=document.createElement('div'); lc.className='char'; lc.textContent=c; lc.onclick=()=>{selectedLogin=c; [...login.children].forEach(x=>x.classList.remove('active')); lc.classList.add('active');}; login.appendChild(lc); }
+  });
+  const lb=document.getElementById('leaderboard');
+  lb.innerHTML = d.leaderboard.length ? d.leaderboard.map(x=>`<li><span>${x.character}</span><b>${x.points} pts</b></li>`).join('') : '<li>Noch keine Punkte.</li>';
+}
+
+async function registerAndGo(){
+  const password=document.getElementById('regPw').value.trim();
+  if(!selectedReg) return alert('Bitte Charakter wählen');
+  const r=await fetch('/api/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({character:selectedReg,password})});
+  const d=await r.json(); if(!r.ok) return alert(d.error||'Fehler');
+  session={character:selectedReg,password};
+  await startQuiz();
+}
+
+async function loginAndGo(){
+  const password=document.getElementById('loginPw').value.trim();
+  if(!selectedLogin) return alert('Bitte registrierten Charakter wählen');
+  const r=await fetch('/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({character:selectedLogin,password})});
+  const d=await r.json(); if(!r.ok) return alert(d.error||'Fehler');
+  session={character:selectedLogin,password};
+  await startQuiz();
+}
+
+async function startQuiz(){
+  document.getElementById('home').style.display='none';
+  document.getElementById('quiz').style.display='block';
+  const r=await fetch('/api/question/today?character='+encodeURIComponent(session.character));
+  const d=await r.json(); if(!r.ok) return alert(d.error||'Fragefehler');
+  document.getElementById('qprompt').textContent=d.question.prompt;
+  const qopts=document.getElementById('qopts'); qopts.innerHTML='';
+  answered=false; left=10; correctIndex=-1; document.getElementById('qresult').textContent='';
+  d.question.options.forEach((o,i)=>{const b=document.createElement('button'); b.className='btn opt'; b.textContent=o; b.onclick=()=>answer(i); qopts.appendChild(b);});
+  if (d.alreadyAnswered) {
+    document.getElementById('qresult').textContent='Heute bereits beantwortet. Morgen ab 08:30 gibt es eine neue Frage.';
+    return;
+  }
+  runTimer();
+}
+
+function runTimer(){
+  clearInterval(timerInt);
+  const bar=document.getElementById('tbar');
+  timerInt=setInterval(()=>{
+    left--; document.getElementById('timerText').textContent=left+'s'; bar.style.width=Math.max(0,left*10)+'%';
+    if(left<=0){ clearInterval(timerInt); if(!answered){ revealNoPoint(); }}
+  },1000);
+}
+
+async function answer(choiceIndex){
+  if(answered) return; answered=true; clearInterval(timerInt);
+  const r=await fetch('/api/answer',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({character:session.character,password:session.password,choiceIndex})});
+  const d=await r.json(); if(!r.ok){ document.getElementById('qresult').textContent=d.error||'Fehler'; return; }
+  correctIndex=d.correctIndex;
+  [...document.querySelectorAll('#qopts .opt')].forEach((b,i)=>{ if(i===correctIndex) b.classList.add('green'); if(i===choiceIndex && i!==correctIndex) b.style.borderColor='#d94f64'; b.disabled=true; });
+  document.getElementById('qresult').textContent=d.isCorrect?`Richtig! +1 Punkt (Gesamt: ${d.points})`:`Leider falsch. Kein Punkt.`;
+  boot();
+}
+
+function revealNoPoint(){
+  answered=true; document.getElementById('qresult').textContent='Zeit abgelaufen – kein Punkt.';
+}
+
+function backHome(){ clearInterval(timerInt); document.getElementById('quiz').style.display='none'; document.getElementById('home').style.display='block'; boot(); }
+
+boot(); setMode('reg');
+</script>
+</body>
+</html>
