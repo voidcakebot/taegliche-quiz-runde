@@ -8,11 +8,11 @@ let initialized = false;
 async function ensureInit(){ if(!initialized){ await storage.init(); initialized = true; } }
 
 function mapErr(e){
-  return e==='CHARACTER_TAKEN' ? [409,'Charakter bereits vergeben.'] :
-    e==='UNKNOWN_CHARACTER' ? [400,'Unbekannter Charakter.'] :
-    e==='NOT_FOUND' ? [404,'Charakter nicht registriert.'] :
-    e==='BAD_PASSWORD' ? [401,'Falsches Passwort.'] :
-    e==='ALREADY_ANSWERED' ? [409,'Für heute bereits beantwortet.'] : [500,'Fehler'];
+  return e==='CHARACTER_TAKEN' ? [409,'Character already taken.'] :
+    e==='UNKNOWN_CHARACTER' ? [400,'Unknown character.'] :
+    e==='NOT_FOUND' ? [404,'Character not registered.'] :
+    e==='BAD_PASSWORD' ? [401,'Wrong password.'] :
+    e==='ALREADY_ANSWERED' ? [409,'Already answered today.'] : [500,'Error'];
 }
 
 async function getDailyQuestion() {

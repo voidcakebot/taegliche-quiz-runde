@@ -17,11 +17,11 @@ function readBody(req) {
 }
 
 function mapErr(e){
-  return e==='CHARACTER_TAKEN' ? [409,'Charakter bereits vergeben.'] :
-    e==='UNKNOWN_CHARACTER' ? [400,'Unbekannter Charakter.'] :
-    e==='NOT_FOUND' ? [404,'Charakter nicht registriert.'] :
-    e==='BAD_PASSWORD' ? [401,'Falsches Passwort.'] :
-    e==='ALREADY_ANSWERED' ? [409,'Für heute bereits beantwortet.'] : [500,'Fehler'];
+  return e==='CHARACTER_TAKEN' ? [409,'Character already taken.'] :
+    e==='UNKNOWN_CHARACTER' ? [400,'Unknown character.'] :
+    e==='NOT_FOUND' ? [404,'Character not registered.'] :
+    e==='BAD_PASSWORD' ? [401,'Wrong password.'] :
+    e==='ALREADY_ANSWERED' ? [409,'Already answered today.'] : [500,'Error'];
 }
 
 async function getDailyQuestion() {
@@ -54,11 +54,11 @@ async function handler(req,res){
       const p = await readBody(req);
       const character = String(p.character||'').trim();
       const password = String(p.password||'').trim();
-      if (password.length < 4) return send(res,400,{ok:false,error:'Passwort mindestens 4 Zeichen.'});
+      if (password.length < 4) return send(res,400,{ok:false,error:'Password must be at least 4 characters.'});
       const r = await storage.register({ character, password });
       if (!r.ok){ const [c,m]=mapErr(r.error); return send(res,c,{ok:false,error:m}); }
       return send(res,200,{ok:true});
-    } catch { return send(res,400,{ok:false,error:'Ungültige Anfrage.'}); }
+    } catch { return send(res,400,{ok:false,error:'Invalid request.'}); }
   }
 
   if (url.pathname === '/api/login' && req.method === 'POST') {
@@ -67,7 +67,7 @@ async function handler(req,res){
       const r = await storage.login({ character:String(p.character||'').trim(), password:String(p.password||'').trim() });
       if (!r.ok){ const [c,m]=mapErr(r.error); return send(res,c,{ok:false,error:m}); }
       return send(res,200,{ok:true,user:r.user});
-    } catch { return send(res,400,{ok:false,error:'Ungültige Anfrage.'}); }
+    } catch { return send(res,400,{ok:false,error:'Invalid request.'}); }
   }
 
   if (url.pathname === '/api/question/today' && req.method === 'GET') {
@@ -77,7 +77,7 @@ async function handler(req,res){
       const alreadyAnswered = character ? await storage.hasAnswered(character, q.key) : false;
       return send(res,200,{ ok:true, question:{ key:q.key, prompt:q.prompt, options:q.options, correctIndex:q.correctIndex }, alreadyAnswered });
     } catch {
-      return send(res,500,{ok:false,error:'Konnte Tagesfrage nicht laden.'});
+      return send(res,500,{ok:false,error:'Could not load daily question.'});
     }
   }
 
@@ -95,7 +95,7 @@ async function handler(req,res){
       const r = await storage.answer({ character, key:q.key, isCorrect });
       if (!r.ok){ const [c,m]=mapErr(r.error); return send(res,c,{ok:false,error:m}); }
       return send(res,200,{ ok:true, isCorrect, correctIndex:q.correctIndex, points:r.points });
-    } catch { return send(res,400,{ok:false,error:'Ungültige Anfrage.'}); }
+    } catch { return send(res,400,{ok:false,error:'Invalid request.'}); }
   }
 
   if (url.pathname === '/api/generate-daily' && (req.method === 'GET' || req.method === 'POST')) {

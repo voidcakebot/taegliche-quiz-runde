@@ -15,5 +15,5 @@ module.exports = async function(req,res){
     const r = await storage.answer({ character, key:q.key, isCorrect });
     if (!r.ok){ const [c,m]=mapErr(r.error); res.statusCode=c; return res.json({ok:false,error:m}); }
     return res.json({ ok:true, isCorrect, correctIndex:q.correctIndex, points:r.points });
-  } catch { res.statusCode=400; return res.json({ok:false,error:'Ungültige Anfrage.'}); }
+  } catch { res.statusCode=400; return res.json({ok:false,error:'Invalid request.'}); }
 };
