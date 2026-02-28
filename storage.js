@@ -1,12 +1,12 @@
 const fs = require('fs');
 
 const CHARACTERS = [
-  'Sir Nebelzahn',
-  'Lady Funkenflug',
-  'Bruder Kicherklinge',
-  'Nyra Mondfeder',
-  'Rokk Eisenwitz',
-  'Kael Schattenhelm'
+  'Aldric Stormbane',
+  'Lyra Nightbloom',
+  'Dorian Ashfall',
+  'Seraphine Emberveil',
+  'Raven Hollowcrest',
+  'Thorne Ironwatch'
 ];
 
 class FileStorage {
