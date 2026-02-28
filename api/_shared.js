@@ -1,9 +1,11 @@
 const path = require('path');
-const { FileStorage } = require('../storage');
+const { createStorage } = require('../storage');
 const { berlinKeyNow, generateQuestion } = require('../wiki');
 
 const statePath = process.env.STATE_PATH || path.join('/tmp', 'taegliche-quiz-runde-state.json');
-const storage = new FileStorage(statePath);
+const storage = createStorage(statePath);
+let initialized = false;
+async function ensureInit(){ if(!initialized){ await storage.init(); initialized = true; } }
 
 function mapErr(e){
   return e==='CHARACTER_TAKEN' ? [409,'Charakter bereits vergeben.'] :
@@ -14,11 +16,12 @@ function mapErr(e){
 }
 
 async function getDailyQuestion() {
+  await ensureInit();
   const key = berlinKeyNow();
-  let q = storage.getQuestion(key);
+  let q = await storage.getQuestion(key);
   if (!q) {
     q = await generateQuestion();
-    storage.setQuestion(key, q);
+    await storage.setQuestion(key, q);
   }
   return { key, ...q };
 }
@@ -30,4 +33,4 @@ function body(req) {
   });
 }
 
-module.exports = { storage, mapErr, getDailyQuestion, body };
+module.exports = { storage, ensureInit, mapErr, getDailyQuestion, body };
