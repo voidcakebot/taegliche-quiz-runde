@@ -120,6 +120,17 @@ async function handler(req,res){
     }
   }
 
+  if (url.pathname === '/api/reset-users' && req.method === 'POST') {
+    try {
+      const p = await readBody(req);
+      if (String(p.confirm || '') !== 'RESET_USERS') return send(res, 400, { ok:false, error:'Missing confirm token.' });
+      await storage.clearUsers();
+      return send(res, 200, { ok:true });
+    } catch {
+      return send(res, 500, { ok:false, error:'Reset failed' });
+    }
+  }
+
   const filePath = url.pathname === '/' ? path.join(__dirname, 'index.html') : path.join(__dirname, url.pathname.replace(/^\//,''));
   if (!filePath.startsWith(__dirname) || !fs.existsSync(filePath)) return send(res,404,'Not found','text/plain');
   const ext = path.extname(filePath);

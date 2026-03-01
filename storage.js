@@ -106,7 +106,15 @@ class FileStorage {
     const day = s.users[character]?.answeredByDay?.[key] || [false, false, false];
     return { answered: day, answeredCount: day.filter(Boolean).length };
   }
+
+  async clearUsers() {
+    const s = this.load();
+    s.users = {};
+    this.save(s);
+    return { ok: true };
+  }
 }
+
 
 class NeonStorage {
   constructor(url) {
@@ -216,7 +224,13 @@ class NeonStorage {
     const day = Array.isArray(byDay[key]) ? byDay[key] : [false, false, false];
     return { answered: day, answeredCount: day.filter(Boolean).length };
   }
+
+  async clearUsers() {
+    await this.sql`DELETE FROM quiz_users`;
+    return { ok: true };
+  }
 }
+
 
 function createStorage(statePath) {
   const db = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.QUIZ_DATABASE_URL || process.env.QUIZ_POSTGRES_URL;

@@ -18,6 +18,8 @@
     .btn[disabled]{opacity:.5;cursor:not-allowed}
     .card{background:#23192c;border:2px solid #3b2b4a;border-radius:14px;padding:12px;margin-top:12px}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+    .grid.trio{grid-template-columns:repeat(2,minmax(140px,1fr));max-width:420px;margin:0 auto}
+    .grid.trio .char.third{grid-column:1 / span 2;justify-self:center;width:48%}
     .char{border:2px solid #56406d;border-radius:10px;padding:10px;text-align:center;cursor:pointer;background:#1a1321}
     .char.active{border-color:#e3c47f}
     .char.taken{opacity:.7;text-decoration:line-through;text-decoration-color:#ff6b7a}
@@ -88,6 +90,15 @@ function setMode(m){
   document.getElementById('mLogin').classList.toggle('active', m==='login');
 }
 
+function applyTrioLayout(container){
+  container.classList.remove('trio');
+  [...container.children].forEach(el=>el.classList.remove('third'));
+  if (container.children.length === 3) {
+    container.classList.add('trio');
+    container.children[2].classList.add('third');
+  }
+}
+
 async function boot(){
   const r=await fetch('/api/bootstrap'); const d=await r.json();
   const reg=document.getElementById('regChars'); reg.innerHTML='';
@@ -107,6 +118,9 @@ async function boot(){
       login.appendChild(lc);
     }
   });
+
+  applyTrioLayout(reg);
+  applyTrioLayout(login);
 
   const lb=document.getElementById('leaderboard');
   lb.innerHTML = d.leaderboard.length ? d.leaderboard.map(x=>`<li><span>${x.character}</span><b>${x.points} pts</b></li>`).join('') : '<li>No points yet.</li>';
