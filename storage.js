@@ -1,12 +1,12 @@
 const fs = require('fs');
 
 const CHARACTERS = [
-  'Aldric Stormbane',
-  'Lyra Nightbloom',
-  'Dorian Ashfall',
-  'Seraphine Emberveil',
-  'Raven Hollowcrest',
-  'Thorne Ironwatch'
+  'Benis der Große',
+  'Arschwasser 3',
+  'Transkrieger',
+  'Möslefrau',
+  'Schwuler Bóbr',
+  'Durchfallman'
 ];
 
 class FileStorage {
