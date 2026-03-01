@@ -3,17 +3,20 @@ const assert = require('node:assert/strict');
 
 const { FileStorage } = require('../storage');
 
-test('register/login and 3-question scoring basics', async () => {
+test('register/login with password and 3-question scoring basics', async () => {
   const s = new FileStorage('/tmp/quiz-test.json');
   s.save({ users: {}, questions: {} });
 
-  const r = await s.register({ character: 'Arschwasser 3' });
+  const r = await s.register({ character: 'Arschwasser 3', password: 'abcd' });
   assert.equal(r.ok, true);
 
-  const dup = await s.register({ character: 'Arschwasser 3' });
+  const dup = await s.register({ character: 'Arschwasser 3', password: 'abcd' });
   assert.equal(dup.ok, false);
 
-  const login = await s.login({ character: 'Arschwasser 3' });
+  const badLogin = await s.login({ character: 'Arschwasser 3', password: 'nope' });
+  assert.equal(badLogin.ok, false);
+
+  const login = await s.login({ character: 'Arschwasser 3', password: 'abcd' });
   assert.equal(login.ok, true);
 
   await s.setQuestion('2026-02-28', { questions:[

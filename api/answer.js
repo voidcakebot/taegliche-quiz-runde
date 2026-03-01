@@ -6,11 +6,12 @@ module.exports = async function(req,res){
     await ensureInit();
     const p = await body(req);
     const character = String(p.character||'').trim();
+    const password = String(p.password||'').trim();
     const questionIndex = Number(p.questionIndex);
     const choiceIndex = Number(p.choiceIndex);
     const timedOut = Boolean(p.timedOut);
 
-    const login = await storage.login({ character });
+    const login = await storage.login({ character, password });
     if (!login.ok){ const [c,m]=mapErr(login.error); res.statusCode=c; return res.json({ok:false,error:m}); }
 
     const round = await getDailyRound();

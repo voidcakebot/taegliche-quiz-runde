@@ -21,6 +21,7 @@ function mapErr(e){
   return e==='CHARACTER_TAKEN' ? [409,'Character already taken.'] :
     e==='UNKNOWN_CHARACTER' ? [400,'Unknown character.'] :
     e==='NOT_FOUND' ? [404,'Character not registered.'] :
+    e==='BAD_PASSWORD' ? [401,'Wrong password.'] :
     e==='ALREADY_ANSWERED' ? [409,'Already answered this question today.'] :
     e==='BAD_QUESTION_INDEX' ? [400,'Invalid question index.'] : [500,'Error'];
 }
@@ -53,7 +54,9 @@ async function handler(req,res){
     try {
       const p = await readBody(req);
       const character = String(p.character||'').trim();
-      const r = await storage.register({ character });
+      const password = String(p.password||'').trim();
+      if (password.length < 4) return send(res,400,{ok:false,error:'Password must be at least 4 characters.'});
+      const r = await storage.register({ character, password });
       if (!r.ok){ const [c,m]=mapErr(r.error); return send(res,c,{ok:false,error:m}); }
       return send(res,200,{ok:true});
     } catch { return send(res,400,{ok:false,error:'Invalid request.'}); }
@@ -62,7 +65,7 @@ async function handler(req,res){
   if (url.pathname === '/api/login' && req.method === 'POST') {
     try {
       const p = await readBody(req);
-      const r = await storage.login({ character:String(p.character||'').trim() });
+      const r = await storage.login({ character:String(p.character||'').trim(), password:String(p.password||'').trim() });
       if (!r.ok){ const [c,m]=mapErr(r.error); return send(res,c,{ok:false,error:m}); }
       return send(res,200,{ok:true,user:r.user});
     } catch { return send(res,400,{ok:false,error:'Invalid request.'}); }
@@ -91,11 +94,12 @@ async function handler(req,res){
     try {
       const p = await readBody(req);
       const character = String(p.character||'').trim();
+      const password = String(p.password||'').trim();
       const questionIndex = Number(p.questionIndex);
       const choiceIndex = Number(p.choiceIndex);
       const timedOut = Boolean(p.timedOut);
 
-      const login = await storage.login({ character });
+      const login = await storage.login({ character, password });
       if (!login.ok){ const [c,m]=mapErr(login.error); return send(res,c,{ok:false,error:m}); }
 
       const round = await getDailyRound();

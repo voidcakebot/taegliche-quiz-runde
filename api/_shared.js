@@ -11,6 +11,7 @@ function mapErr(e){
   return e==='CHARACTER_TAKEN' ? [409,'Character already taken.'] :
     e==='UNKNOWN_CHARACTER' ? [400,'Unknown character.'] :
     e==='NOT_FOUND' ? [404,'Character not registered.'] :
+    e==='BAD_PASSWORD' ? [401,'Wrong password.'] :
     e==='ALREADY_ANSWERED' ? [409,'Already answered this question today.'] :
     e==='BAD_QUESTION_INDEX' ? [400,'Invalid question index.'] :
     [500,'Error'];

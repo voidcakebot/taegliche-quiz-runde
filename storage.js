@@ -10,10 +10,11 @@ const CHARACTERS = [
 
 function normalizeUser(u = {}) {
   return {
+    password: String(u.password || ''),
     points: Number(u.points || 0),
     createdAt: u.createdAt || new Date().toISOString(),
     answeredByDay: typeof u.answeredByDay === 'object' && u.answeredByDay ? u.answeredByDay : {},
-    // legacy fields kept for compatibility; ignored in new flow
+    // legacy fields kept for compatibility
     lastAnsweredKey: u.lastAnsweredKey || null
   };
 }
@@ -44,19 +45,20 @@ class FileStorage {
     return { characters: CHARACTERS, taken, leaderboard };
   }
 
-  async register({ character }) {
+  async register({ character, password }) {
     const s = this.load();
     if (!CHARACTERS.includes(character)) return { ok:false, error:'UNKNOWN_CHARACTER' };
     if (s.users[character]) return { ok:false, error:'CHARACTER_TAKEN' };
-    s.users[character] = normalizeUser({ createdAt: new Date().toISOString() });
+    s.users[character] = normalizeUser({ password, createdAt: new Date().toISOString() });
     this.save(s);
     return { ok:true };
   }
 
-  async login({ character }) {
+  async login({ character, password }) {
     const s = this.load();
     const u = s.users[character];
     if (!u) return { ok:false, error:'NOT_FOUND' };
+    if (String(u.password || '') !== String(password || '')) return { ok:false, error:'BAD_PASSWORD' };
     return { ok:true, user: { character, points: Number(u.points||0) } };
   }
 
@@ -116,12 +118,13 @@ class NeonStorage {
     await this.sql`
       CREATE TABLE IF NOT EXISTS quiz_users (
         character TEXT PRIMARY KEY,
+        password TEXT NOT NULL DEFAULT '',
         points INTEGER NOT NULL DEFAULT 0,
         answered_by_day JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
-    await this.sql`ALTER TABLE quiz_users DROP COLUMN IF EXISTS password`;
+    await this.sql`ALTER TABLE quiz_users ADD COLUMN IF NOT EXISTS password TEXT NOT NULL DEFAULT ''`;
     await this.sql`ALTER TABLE quiz_users DROP COLUMN IF EXISTS last_answered_key`;
     await this.sql`DELETE FROM quiz_users WHERE character = ANY(${REMOVED_CHARACTERS})`;
 
@@ -144,10 +147,10 @@ class NeonStorage {
     };
   }
 
-  async register({ character }) {
+  async register({ character, password }) {
     if (!CHARACTERS.includes(character)) return { ok:false, error:'UNKNOWN_CHARACTER' };
     try {
-      await this.sql`INSERT INTO quiz_users (character) VALUES (${character})`;
+      await this.sql`INSERT INTO quiz_users (character, password) VALUES (${character}, ${String(password || '')})`;
       return { ok:true };
     } catch (e) {
       if (e?.code === '23505') return { ok:false, error:'CHARACTER_TAKEN' };
@@ -155,10 +158,11 @@ class NeonStorage {
     }
   }
 
-  async login({ character }) {
-    const rows = await this.sql`SELECT character, points FROM quiz_users WHERE character = ${character} LIMIT 1`;
+  async login({ character, password }) {
+    const rows = await this.sql`SELECT character, password, points FROM quiz_users WHERE character = ${character} LIMIT 1`;
     if (!rows.length) return { ok:false, error:'NOT_FOUND' };
     const u = rows[0];
+    if (String(u.password || '') !== String(password || '')) return { ok:false, error:'BAD_PASSWORD' };
     return { ok:true, user:{ character:u.character, points:Number(u.points||0) } };
   }
 

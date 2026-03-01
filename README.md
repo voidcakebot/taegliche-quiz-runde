@@ -4,7 +4,8 @@ Separates Projekt zu Ritterrunde.
 
 ## Features
 - 3 feste Spieler-Charaktere
-- Login ohne Passwort (nur Charakterauswahl)
+- Register + Login mit Passwort
+- Login zeigt nur bereits registrierte Charaktere
 - Leaderboard auf Startseite
 - Tägliche 3-Fragen-Runde (neuer Satz ab 08:30 Berlin)
 - Pro Frage 20s Timer
