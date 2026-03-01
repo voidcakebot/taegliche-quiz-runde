@@ -2,14 +2,16 @@
 
 Separates Projekt zu Ritterrunde.
 
-## Features (Grundgerüst)
-- Registrieren/Login mit 6 Charakteren
-- Charakter kann nur 1x vergeben werden
+## Features
+- 3 feste Spieler-Charaktere
+- Login ohne Passwort (nur Charakterauswahl)
 - Leaderboard auf Startseite
-- Tagesfrage mit 10s Timer, 4 Antwortoptionen
-- +1 Punkt für richtige Antwort, 0 Punkte bei Timeout/falsch
-- Frage kommt aus Wikipedia (zufällig generiert)
-- Tagesfrage wird pro Berlin-Tag (08:30 Umschaltzeit) gecacht
+- Tägliche 3-Fragen-Runde (neuer Satz ab 08:30 Berlin)
+- Pro Frage 20s Timer
+- +1 Punkt für richtige Antwort innerhalb der Zeit
+- Bei Timeout/Falsch: 0 Punkte + richtige Antwort wird markiert
+- Frage 1 -> Frage 2 -> Frage 3 nur vorwärts (kein Zurück)
+- Nach Frage 3: Zur-Startseite-Button erst nach Antwort/Timeout aktiv
 
 ## Start
 ```bash

@@ -42,7 +42,6 @@ function decodeHtml(str = '') {
 }
 
 function pickWeightedCategory() {
-  // 50% general knowledge, 25% history, 25% science
   const r = Math.random();
   if (r < 0.50) return 'general_knowledge';
   if (r < 0.75) return 'history';
@@ -99,4 +98,16 @@ async function generateQuestion() {
   return (await fromTheTriviaApi()) || (await fromOpenTdb()) || (() => { throw new Error('No quiz provider available'); })();
 }
 
-module.exports = { berlinKeyNow, generateQuestion };
+async function generateRound(count = 3) {
+  const questions = [];
+  for (let i = 0; i < count; i++) {
+    questions.push(await generateQuestion());
+  }
+  return {
+    questions,
+    sourceTitle: `round:${questions.map((q) => q.sourceTitle).join('|')}`,
+    createdAt: new Date().toISOString()
+  };
+}
+
+module.exports = { berlinKeyNow, generateQuestion, generateRound };

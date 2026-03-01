@@ -1,4 +1,4 @@
-const { getDailyQuestion } = require('./_shared');
+const { getDailyRound } = require('./_shared');
 
 module.exports = async function(req,res){
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -6,10 +6,10 @@ module.exports = async function(req,res){
     return res.json({ok:false,error:'Method not allowed'});
   }
   try {
-    const q = await getDailyQuestion();
-    return res.json({ ok:true, key:q.key, sourceTitle:q.sourceTitle });
+    const q = await getDailyRound();
+    return res.json({ ok:true, key:q.key, totalQuestions: q.questions.length });
   } catch {
     res.statusCode=500;
-    return res.json({ ok:false, error:'Could not generate daily question' });
+    return res.json({ ok:false, error:'Could not generate daily round' });
   }
 };

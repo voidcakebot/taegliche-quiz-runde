@@ -5,7 +5,7 @@ module.exports = async function(req,res){
   try {
     await ensureInit();
     const p = await body(req);
-    const r = await storage.login({ character:String(p.character||'').trim(), password:String(p.password||'').trim() });
+    const r = await storage.login({ character:String(p.character||'').trim() });
     if (!r.ok){ const [c,m]=mapErr(r.error); res.statusCode=c; return res.json({ok:false,error:m}); }
     return res.json({ok:true,user:r.user});
   } catch { res.statusCode=400; return res.json({ok:false,error:'Invalid request.'}); }

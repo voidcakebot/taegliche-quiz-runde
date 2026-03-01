@@ -1,6 +1,6 @@
 const path = require('path');
 const { createStorage } = require('../storage');
-const { berlinKeyNow, generateQuestion } = require('../wiki');
+const { berlinKeyNow, generateRound } = require('../wiki');
 
 const statePath = process.env.STATE_PATH || path.join('/tmp', 'taegliche-quiz-runde-state.json');
 const storage = createStorage(statePath);
@@ -11,16 +11,17 @@ function mapErr(e){
   return e==='CHARACTER_TAKEN' ? [409,'Character already taken.'] :
     e==='UNKNOWN_CHARACTER' ? [400,'Unknown character.'] :
     e==='NOT_FOUND' ? [404,'Character not registered.'] :
-    e==='BAD_PASSWORD' ? [401,'Wrong password.'] :
-    e==='ALREADY_ANSWERED' ? [409,'Already answered today.'] : [500,'Error'];
+    e==='ALREADY_ANSWERED' ? [409,'Already answered this question today.'] :
+    e==='BAD_QUESTION_INDEX' ? [400,'Invalid question index.'] :
+    [500,'Error'];
 }
 
-async function getDailyQuestion() {
+async function getDailyRound() {
   await ensureInit();
   const key = berlinKeyNow();
   let q = await storage.getQuestion(key);
-  if (!q) {
-    q = await generateQuestion();
+  if (!q || !Array.isArray(q.questions) || q.questions.length !== 3) {
+    q = await generateRound(3);
     await storage.setQuestion(key, q);
   }
   return { key, ...q };
@@ -33,4 +34,4 @@ function body(req) {
   });
 }
 
-module.exports = { storage, ensureInit, mapErr, getDailyQuestion, body };
+module.exports = { storage, ensureInit, mapErr, getDailyRound, body };

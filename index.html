@@ -3,146 +3,157 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Daily Quiz Round</title>
+  <title>Tägliche Quiz Runde</title>
   <style>
     *{box-sizing:border-box}
     body{margin:0;background:#141019;color:#f2ebff;font-family:system-ui,sans-serif}
     .wrap{max-width:980px;margin:0 auto;padding:16px}
     .top{background:#251a30;border:2px solid #4e3a63;border-radius:14px;padding:12px;text-align:center}
     .title{font-size:34px;font-weight:900;color:#e3c47f}
-    .mode{display:flex;justify-content:center;gap:8px;margin:12px 0}
-    .mode .btn.active{border-color:#e3c47f;box-shadow:0 0 0 1px #000 inset}
     .btn{padding:10px 14px;border-radius:10px;border:2px solid #5c4474;background:#332447;color:#fff;font-weight:700;cursor:pointer}
     .btn.green{background:#2d8a4d;border-color:#4ac26d}
     .btn.cta{font-size:18px;padding:13px 22px;min-width:170px}
+    .btn[disabled]{opacity:.5;cursor:not-allowed}
     .card{background:#23192c;border:2px solid #3b2b4a;border-radius:14px;padding:12px;margin-top:12px}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
     .char{border:2px solid #56406d;border-radius:10px;padding:10px;text-align:center;cursor:pointer;background:#1a1321}
     .char.active{border-color:#e3c47f}
-    .char.taken{opacity:.7;text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:#ff6b7a}
-    input{width:100%;padding:9px;border-radius:8px;border:1px solid #4f3a60;background:#18111f;color:#fff}
+    .char.taken{opacity:.7}
     .leader li{display:flex;justify-content:space-between;border-bottom:1px dashed #4c3961;padding:6px 0}
     #quiz{display:none}
     .timer{height:10px;background:#261d31;border:1px solid #584170;border-radius:999px;overflow:hidden;margin:8px 0}
     .timer>div{height:100%;background:linear-gradient(90deg,#4fd475,#d2f27a);width:100%}
     .opt{display:block;width:100%;text-align:left;margin:8px 0}
+    .row{display:flex;justify-content:space-between;align-items:center;gap:12px}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="top"><div class="title">🧠 Daily Quiz Round</div></div>
+    <div class="top"><div class="title">🧠 Tägliche Quiz Runde</div></div>
 
     <section id="home" class="card">
-      <div class="mode">
-        <button id="mLogin" class="btn" onclick="setMode('login')">Login</button>
-        <button id="mReg" class="btn" onclick="setMode('reg')">Register</button>
-      </div>
-
-      <div id="regBox">
-        <h3>Choose a character</h3>
-        <div id="regChars" class="grid"></div>
-        <div style="margin-top:12px">
-          <label>Password</label><input id="regPw" type="password" maxlength="32" />
-        </div>
-        <div style="margin-top:10px;display:flex;justify-content:center"><button class="btn green cta" onclick="registerAndGo()">Let’s go</button></div>
-      </div>
-
-      <div id="loginBox" style="display:none">
-        <h3>Choose a registered character</h3>
-        <div id="loginChars" class="grid" style="justify-content:center"></div>
-        <label>Password</label><input id="loginPw" type="password" maxlength="32" />
-        <div style="margin-top:10px;display:flex;justify-content:center"><button class="btn green cta" onclick="loginAndGo()">Let’s go</button></div>
-      </div>
+      <h3>Spieler auswählen</h3>
+      <div id="chars" class="grid"></div>
+      <div style="margin-top:10px;display:flex;justify-content:center"><button class="btn green cta" onclick="enterQuiz()">Let’s go</button></div>
 
       <h3>Leaderboard</h3>
       <ul id="leaderboard" class="leader"></ul>
     </section>
 
     <section id="quiz" class="card">
-      <h3>Daily Question</h3>
+      <div class="row">
+        <h3 id="qtitle">Frage 1/3</h3>
+        <div id="timerText">20s</div>
+      </div>
       <div class="timer"><div id="tbar"></div></div>
-      <div id="timerText">20s</div>
       <p id="qprompt"></p>
       <div id="qopts"></div>
       <p id="qresult"></p>
-      <button class="btn" onclick="backHome()">Back to home</button>
+      <div class="row" style="margin-top:12px">
+        <span id="progressLabel"></span>
+        <button id="nextBtn" class="btn" disabled onclick="nextStep()">Weiter</button>
+        <button id="homeBtn" class="btn" style="display:none" disabled onclick="backHome()">Zur Startseite</button>
+      </div>
     </section>
   </div>
 <script>
-let mode='reg', selectedReg=null, selectedLogin=null, session=null, timerInt=null, left=20, answered=false, correctIndex=-1;
-
-function setMode(m){
-  mode=m;
-  document.getElementById('regBox').style.display=m==='reg'?'block':'none';
-  document.getElementById('loginBox').style.display=m==='login'?'block':'none';
-  document.getElementById('mReg').classList.toggle('active', m==='reg');
-  document.getElementById('mLogin').classList.toggle('active', m==='login');
-}
+let selectedCharacter=null;
+let timerInt=null;
+let left=20;
+let answered=false;
+let currentIndex=0;
+let totalQuestions=3;
 
 async function boot(){
   const r=await fetch('/api/bootstrap'); const d=await r.json();
-  const reg=document.getElementById('regChars'); reg.innerHTML='';
-  const login=document.getElementById('loginChars'); login.innerHTML='';
+  const chars=document.getElementById('chars'); chars.innerHTML='';
   d.characters.forEach(c=>{
     const taken=d.taken.includes(c);
-    const rc=document.createElement('div'); rc.className='char'+(taken?' taken':''); rc.textContent=c;
-    if(!taken){rc.onclick=()=>{selectedReg=c; [...reg.children].forEach(x=>x.classList.remove('active')); rc.classList.add('active');};}
-    reg.appendChild(rc);
-    if(taken){ const lc=document.createElement('div'); lc.className='char'; lc.textContent=c; lc.onclick=()=>{selectedLogin=c; [...login.children].forEach(x=>x.classList.remove('active')); lc.classList.add('active');}; login.appendChild(lc); }
+    const el=document.createElement('div');
+    el.className='char'+(taken?' taken':'');
+    el.textContent=c;
+    el.onclick=()=>{selectedCharacter=c; [...chars.children].forEach(x=>x.classList.remove('active')); el.classList.add('active');};
+    chars.appendChild(el);
   });
   const lb=document.getElementById('leaderboard');
   lb.innerHTML = d.leaderboard.length ? d.leaderboard.map(x=>`<li><span>${x.character}</span><b>${x.points} pts</b></li>`).join('') : '<li>No points yet.</li>';
 }
 
-async function registerAndGo(){
-  const password=document.getElementById('regPw').value.trim();
-  if(!selectedReg) return alert('Please choose a character');
-  const r=await fetch('/api/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({character:selectedReg,password})});
-  const d=await r.json(); if(!r.ok) return alert(d.error||'Error');
-  session={character:selectedReg,password};
-  await startQuiz();
-}
+async function enterQuiz(){
+  if(!selectedCharacter) return alert('Bitte Spieler auswählen');
 
-async function loginAndGo(){
-  const password=document.getElementById('loginPw').value.trim();
-  if(!selectedLogin) return alert('Please choose a registered character');
-  const r=await fetch('/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({character:selectedLogin,password})});
-  const d=await r.json(); if(!r.ok) return alert(d.error||'Error');
-  session={character:selectedLogin,password};
-  await startQuiz();
-}
+  // try login first, if not existing then register
+  let r=await fetch('/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({character:selectedCharacter})});
+  if(!r.ok){
+    r=await fetch('/api/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({character:selectedCharacter})});
+    const d2=await r.json();
+    if(!r.ok) return alert(d2.error||'Fehler');
+  }
 
-async function startQuiz(){
   document.getElementById('home').style.display='none';
   document.getElementById('quiz').style.display='block';
-  const r=await fetch('/api/question-today?character='+encodeURIComponent(session.character));
-  const d=await r.json(); if(!r.ok) return alert(d.error||'Fragefehler');
+  await loadQuestion(0);
+}
+
+async function loadQuestion(index){
+  clearInterval(timerInt);
+  answered=false;
+  left=20;
+  document.getElementById('nextBtn').disabled=true;
+  document.getElementById('homeBtn').disabled=true;
+  document.getElementById('qresult').textContent='';
+
+  const r=await fetch('/api/question-today?character='+encodeURIComponent(selectedCharacter)+'&questionIndex='+index);
+  const d=await r.json();
+  if(!r.ok) return alert(d.error||'Fragefehler');
+
+  currentIndex=Number(d.questionIndex||0);
+  totalQuestions=Number(d.totalQuestions||3);
+
+  document.getElementById('qtitle').textContent=`Frage ${currentIndex+1}/${totalQuestions}`;
   document.getElementById('qprompt').textContent=d.question.prompt;
+  document.getElementById('progressLabel').textContent=`Beantwortet: ${d.progress.answeredCount}/${totalQuestions}`;
+
   const qopts=document.getElementById('qopts'); qopts.innerHTML='';
-  answered=false; left=20; correctIndex=-1; document.getElementById('qresult').textContent='';
-  correctIndex = Number(d.question.correctIndex);
-  d.question.options.forEach((o,i)=>{const b=document.createElement('button'); b.className='btn opt'; b.textContent=o; b.onclick=()=>answer(i); qopts.appendChild(b);});
-  if (d.alreadyAnswered) {
-    lockAndReveal();
-    document.getElementById('qresult').textContent='Already answered today. A new question appears at 08:30.';
+  d.question.options.forEach((o,i)=>{
+    const b=document.createElement('button');
+    b.className='btn opt';
+    b.textContent=o;
+    b.onclick=()=>submitAnswer(i,false);
+    qopts.appendChild(b);
+  });
+
+  const finished = Boolean(d.finished);
+  document.getElementById('nextBtn').style.display = (!finished && currentIndex < totalQuestions-1) ? 'inline-block' : 'none';
+  document.getElementById('homeBtn').style.display = (finished || currentIndex === totalQuestions-1) ? 'inline-block' : 'none';
+
+  if (finished) {
+    lockOptions();
+    document.getElementById('qresult').textContent='Heute bereits alle 3 Fragen beantwortet. Morgen ab 08:30 gibt es neue Fragen.';
+    document.getElementById('homeBtn').disabled=false;
     return;
   }
+
   runTimer();
 }
 
 function runTimer(){
   clearInterval(timerInt);
   const bar=document.getElementById('tbar');
+  document.getElementById('timerText').textContent='20s';
+  bar.style.width='100%';
   timerInt=setInterval(()=>{
-    left--; document.getElementById('timerText').textContent=left+'s'; bar.style.width=Math.max(0,(left/20)*100)+'%';
-    if(left<=0){ clearInterval(timerInt); if(!answered){ revealNoPoint(); }}
+    left--;
+    document.getElementById('timerText').textContent=left+'s';
+    bar.style.width=Math.max(0,(left/20)*100)+'%';
+    if(left<=0){ clearInterval(timerInt); if(!answered){ submitAnswer(-1,true); }}
   },1000);
 }
 
-function lockAndReveal(chosenIndex = null){
+function lockOptions(correctIndex = null, chosenIndex = null){
   [...document.querySelectorAll('#qopts .opt')].forEach((b,i)=>{
     b.disabled = true;
-    if(i===correctIndex){
+    if(correctIndex !== null && i===correctIndex){
       b.classList.add('green');
     } else if(chosenIndex !== null && i===chosenIndex){
       b.style.background = '#6a1f2e';
@@ -151,32 +162,66 @@ function lockAndReveal(chosenIndex = null){
   });
 }
 
-async function answer(choiceIndex){
+async function submitAnswer(choiceIndex, timedOut){
   if(answered) return;
   answered=true;
   clearInterval(timerInt);
-  const r=await fetch('/api/answer',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({character:session.character,password:session.password,choiceIndex})});
+
+  const r=await fetch('/api/answer',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({
+      character:selectedCharacter,
+      questionIndex:currentIndex,
+      choiceIndex,
+      timedOut
+    })
+  });
   const d=await r.json();
   if(!r.ok){
-    if(d.error && d.error.includes('bereits beantwortet')) lockAndReveal(choiceIndex);
-    document.getElementById('qresult').textContent=d.error||'Error';
+    document.getElementById('qresult').textContent=d.error||'Fehler';
+    lockOptions();
+    document.getElementById('nextBtn').disabled=false;
+    document.getElementById('homeBtn').disabled=false;
     return;
   }
-  correctIndex=Number(d.correctIndex);
-  lockAndReveal(choiceIndex);
-  document.getElementById('qresult').textContent=d.isCorrect?`Correct! +1 point (Total: ${d.points})`:`Incorrect. No point. The correct answer is highlighted.`;
+
+  lockOptions(Number(d.correctIndex), timedOut ? null : choiceIndex);
+
+  if (timedOut) {
+    document.getElementById('qresult').textContent='Zeit abgelaufen – kein Punkt. Richtige Antwort ist markiert.';
+  } else if (d.isCorrect) {
+    document.getElementById('qresult').textContent=`Richtig! +1 Punkt (Gesamt: ${d.points})`;
+  } else {
+    document.getElementById('qresult').textContent='Falsch – kein Punkt. Richtige Antwort ist markiert.';
+  }
+
+  document.getElementById('progressLabel').textContent=`Beantwortet: ${d.answeredCount}/${totalQuestions}`;
+
+  const isLastQuestion = currentIndex >= totalQuestions - 1;
+  if (!isLastQuestion && !d.roundFinished) {
+    document.getElementById('nextBtn').disabled=false;
+  } else {
+    document.getElementById('homeBtn').disabled=false;
+  }
+
+  await boot();
+}
+
+function nextStep(){
+  if(document.getElementById('nextBtn').disabled) return;
+  loadQuestion(currentIndex + 1);
+}
+
+function backHome(){
+  if(document.getElementById('homeBtn').disabled) return;
+  clearInterval(timerInt);
+  document.getElementById('quiz').style.display='none';
+  document.getElementById('home').style.display='block';
   boot();
 }
 
-function revealNoPoint(){
-  answered=true;
-  lockAndReveal();
-  document.getElementById('qresult').textContent='Time is up — no point. The correct answer is highlighted.';
-}
-
-function backHome(){ clearInterval(timerInt); document.getElementById('quiz').style.display='none'; document.getElementById('home').style.display='block'; boot(); }
-
-boot(); setMode('reg');
+boot();
 </script>
 </body>
 </html>

@@ -1,9 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const { createStorage } = require('./storage');
-const { berlinKeyNow, generateQuestion } = require('./wiki');
+const { berlinKeyNow, generateRound } = require('./wiki');
 
 const storage = createStorage(path.join(__dirname, 'state.json'));
+let initialized = false;
 
 function send(res, code, data, type='application/json') {
   res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' });
@@ -20,21 +21,20 @@ function mapErr(e){
   return e==='CHARACTER_TAKEN' ? [409,'Character already taken.'] :
     e==='UNKNOWN_CHARACTER' ? [400,'Unknown character.'] :
     e==='NOT_FOUND' ? [404,'Character not registered.'] :
-    e==='BAD_PASSWORD' ? [401,'Wrong password.'] :
-    e==='ALREADY_ANSWERED' ? [409,'Already answered today.'] : [500,'Error'];
+    e==='ALREADY_ANSWERED' ? [409,'Already answered this question today.'] :
+    e==='BAD_QUESTION_INDEX' ? [400,'Invalid question index.'] : [500,'Error'];
 }
 
-async function getDailyQuestion() {
+async function getDailyRound() {
   const key = berlinKeyNow();
   let q = await storage.getQuestion(key);
-  if (!q) {
-    q = await generateQuestion();
+  if (!q || !Array.isArray(q.questions) || q.questions.length !== 3) {
+    q = await generateRound(3);
     await storage.setQuestion(key, q);
   }
   return { key, ...q };
 }
 
-let initialized = false;
 async function ensureInit() {
   if (initialized) return;
   await storage.init();
@@ -53,9 +53,7 @@ async function handler(req,res){
     try {
       const p = await readBody(req);
       const character = String(p.character||'').trim();
-      const password = String(p.password||'').trim();
-      if (password.length < 4) return send(res,400,{ok:false,error:'Password must be at least 4 characters.'});
-      const r = await storage.register({ character, password });
+      const r = await storage.register({ character });
       if (!r.ok){ const [c,m]=mapErr(r.error); return send(res,c,{ok:false,error:m}); }
       return send(res,200,{ok:true});
     } catch { return send(res,400,{ok:false,error:'Invalid request.'}); }
@@ -64,20 +62,28 @@ async function handler(req,res){
   if (url.pathname === '/api/login' && req.method === 'POST') {
     try {
       const p = await readBody(req);
-      const r = await storage.login({ character:String(p.character||'').trim(), password:String(p.password||'').trim() });
+      const r = await storage.login({ character:String(p.character||'').trim() });
       if (!r.ok){ const [c,m]=mapErr(r.error); return send(res,c,{ok:false,error:m}); }
       return send(res,200,{ok:true,user:r.user});
     } catch { return send(res,400,{ok:false,error:'Invalid request.'}); }
   }
 
-  if (url.pathname === '/api/question/today' && req.method === 'GET') {
+  if (url.pathname === '/api/question-today' && req.method === 'GET') {
     try {
       const character = String(url.searchParams.get('character') || '').trim();
-      const q = await getDailyQuestion();
-      const alreadyAnswered = character ? await storage.hasAnswered(character, q.key) : false;
-      return send(res,200,{ ok:true, question:{ key:q.key, prompt:q.prompt, options:q.options, correctIndex:q.correctIndex }, alreadyAnswered });
+      const requestedIndex = Number(url.searchParams.get('questionIndex') || 0);
+      const round = await getDailyRound();
+      let progress = { answered:[false,false,false], answeredCount:0 };
+      if (character) progress = await storage.getProgress(character, round.key);
+      const firstOpen = progress.answered.findIndex((v)=>!v);
+      const nextIndex = firstOpen === -1 ? 2 : firstOpen;
+      const questionIndex = Number.isInteger(requestedIndex) && requestedIndex >= 0 && requestedIndex <= 2
+        ? Math.min(requestedIndex, nextIndex)
+        : nextIndex;
+      const q = round.questions[questionIndex];
+      return send(res,200,{ ok:true, key: round.key, questionIndex, totalQuestions:3, progress, finished: progress.answeredCount >= 3, question:{ prompt:q.prompt, options:q.options } });
     } catch {
-      return send(res,500,{ok:false,error:'Could not load daily question.'});
+      return send(res,500,{ok:false,error:'Could not load daily questions.'});
     }
   }
 
@@ -85,25 +91,28 @@ async function handler(req,res){
     try {
       const p = await readBody(req);
       const character = String(p.character||'').trim();
-      const password = String(p.password||'').trim();
+      const questionIndex = Number(p.questionIndex);
       const choiceIndex = Number(p.choiceIndex);
-      const login = await storage.login({ character, password });
+      const timedOut = Boolean(p.timedOut);
+
+      const login = await storage.login({ character });
       if (!login.ok){ const [c,m]=mapErr(login.error); return send(res,c,{ok:false,error:m}); }
 
-      const q = await getDailyQuestion();
-      const isCorrect = choiceIndex === Number(q.correctIndex);
-      const r = await storage.answer({ character, key:q.key, isCorrect });
+      const round = await getDailyRound();
+      const q = round.questions[questionIndex];
+      const isCorrect = !timedOut && choiceIndex === Number(q.correctIndex);
+      const r = await storage.answer({ character, key:round.key, questionIndex, isCorrect });
       if (!r.ok){ const [c,m]=mapErr(r.error); return send(res,c,{ok:false,error:m}); }
-      return send(res,200,{ ok:true, isCorrect, correctIndex:q.correctIndex, points:r.points });
+      return send(res,200,{ ok:true, isCorrect, timedOut, correctIndex:q.correctIndex, points:r.points, answered:r.answered, answeredCount:r.answeredCount, roundFinished:r.answeredCount >= 3 });
     } catch { return send(res,400,{ok:false,error:'Invalid request.'}); }
   }
 
   if (url.pathname === '/api/generate-daily' && (req.method === 'GET' || req.method === 'POST')) {
     try {
-      const q = await getDailyQuestion();
-      return send(res, 200, { ok: true, key: q.key, sourceTitle: q.sourceTitle });
+      const q = await getDailyRound();
+      return send(res, 200, { ok: true, key: q.key, totalQuestions: q.questions.length });
     } catch {
-      return send(res, 500, { ok:false, error:'Could not generate daily question' });
+      return send(res, 500, { ok:false, error:'Could not generate daily round' });
     }
   }
 

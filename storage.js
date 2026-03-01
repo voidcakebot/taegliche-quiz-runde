@@ -1,13 +1,22 @@
 const fs = require('fs');
 
+const REMOVED_CHARACTERS = ['Benis der Große', 'Schwuler Bóbr', 'Transkrieger'];
+
 const CHARACTERS = [
-  'Benis der Große',
   'Arschwasser 3',
-  'Transkrieger',
   'Möslefrau',
-  'Schwuler Bóbr',
   'Durchfallman'
 ];
+
+function normalizeUser(u = {}) {
+  return {
+    points: Number(u.points || 0),
+    createdAt: u.createdAt || new Date().toISOString(),
+    answeredByDay: typeof u.answeredByDay === 'object' && u.answeredByDay ? u.answeredByDay : {},
+    // legacy fields kept for compatibility; ignored in new flow
+    lastAnsweredKey: u.lastAnsweredKey || null
+  };
+}
 
 class FileStorage {
   constructor(path) { this.path = path; }
@@ -16,6 +25,8 @@ class FileStorage {
     try {
       const d = JSON.parse(fs.readFileSync(this.path, 'utf8'));
       d.users ||= {}; d.questions ||= {};
+      for (const removed of REMOVED_CHARACTERS) delete d.users[removed];
+      for (const k of Object.keys(d.users)) d.users[k] = normalizeUser(d.users[k]);
       return d;
     } catch { return { users: {}, questions: {} }; }
   }
@@ -33,20 +44,19 @@ class FileStorage {
     return { characters: CHARACTERS, taken, leaderboard };
   }
 
-  async register({ character, password }) {
+  async register({ character }) {
     const s = this.load();
     if (!CHARACTERS.includes(character)) return { ok:false, error:'UNKNOWN_CHARACTER' };
     if (s.users[character]) return { ok:false, error:'CHARACTER_TAKEN' };
-    s.users[character] = { password, points: 0, createdAt: new Date().toISOString(), lastAnsweredKey: null };
+    s.users[character] = normalizeUser({ createdAt: new Date().toISOString() });
     this.save(s);
     return { ok:true };
   }
 
-  async login({ character, password }) {
+  async login({ character }) {
     const s = this.load();
     const u = s.users[character];
     if (!u) return { ok:false, error:'NOT_FOUND' };
-    if (u.password !== password) return { ok:false, error:'BAD_PASSWORD' };
     return { ok:true, user: { character, points: Number(u.points||0) } };
   }
 
@@ -57,20 +67,42 @@ class FileStorage {
     this.save(s);
   }
 
-  async answer({ character, key, isCorrect }) {
+  async answer({ character, key, questionIndex, isCorrect }) {
     const s = this.load();
     const u = s.users[character];
     if (!u) return { ok:false, error:'NOT_FOUND' };
-    if (u.lastAnsweredKey === key) return { ok:false, error:'ALREADY_ANSWERED' };
-    u.lastAnsweredKey = key;
+    if (!Number.isInteger(questionIndex) || questionIndex < 0 || questionIndex > 2) return { ok:false, error:'BAD_QUESTION_INDEX' };
+
+    u.answeredByDay ||= {};
+    const day = u.answeredByDay[key] || [false, false, false];
+    if (day[questionIndex]) return { ok:false, error:'ALREADY_ANSWERED' };
+
+    day[questionIndex] = true;
+    u.answeredByDay[key] = day;
+
     if (isCorrect) u.points = Number(u.points||0) + 1;
+    s.users[character] = normalizeUser(u);
     this.save(s);
-    return { ok:true, points: Number(u.points||0) };
+
+    return {
+      ok:true,
+      points: Number(u.points||0),
+      answered: day,
+      answeredCount: day.filter(Boolean).length
+    };
   }
 
-  async hasAnswered(character, key) {
+  async hasAnswered(character, key, questionIndex) {
     const s = this.load();
-    return s.users[character]?.lastAnsweredKey === key;
+    const day = s.users[character]?.answeredByDay?.[key] || [false, false, false];
+    if (Number.isInteger(questionIndex)) return Boolean(day[questionIndex]);
+    return day.every(Boolean);
+  }
+
+  async getProgress(character, key) {
+    const s = this.load();
+    const day = s.users[character]?.answeredByDay?.[key] || [false, false, false];
+    return { answered: day, answeredCount: day.filter(Boolean).length };
   }
 }
 
@@ -84,12 +116,15 @@ class NeonStorage {
     await this.sql`
       CREATE TABLE IF NOT EXISTS quiz_users (
         character TEXT PRIMARY KEY,
-        password TEXT NOT NULL,
         points INTEGER NOT NULL DEFAULT 0,
-        last_answered_key TEXT,
+        answered_by_day JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
+    await this.sql`ALTER TABLE quiz_users DROP COLUMN IF EXISTS password`;
+    await this.sql`ALTER TABLE quiz_users DROP COLUMN IF EXISTS last_answered_key`;
+    await this.sql`DELETE FROM quiz_users WHERE character = ANY(${REMOVED_CHARACTERS})`;
+
     await this.sql`
       CREATE TABLE IF NOT EXISTS quiz_questions (
         question_key TEXT PRIMARY KEY,
@@ -109,10 +144,10 @@ class NeonStorage {
     };
   }
 
-  async register({ character, password }) {
+  async register({ character }) {
     if (!CHARACTERS.includes(character)) return { ok:false, error:'UNKNOWN_CHARACTER' };
     try {
-      await this.sql`INSERT INTO quiz_users (character, password) VALUES (${character}, ${password})`;
+      await this.sql`INSERT INTO quiz_users (character) VALUES (${character})`;
       return { ok:true };
     } catch (e) {
       if (e?.code === '23505') return { ok:false, error:'CHARACTER_TAKEN' };
@@ -120,11 +155,10 @@ class NeonStorage {
     }
   }
 
-  async login({ character, password }) {
-    const rows = await this.sql`SELECT character, password, points FROM quiz_users WHERE character = ${character} LIMIT 1`;
+  async login({ character }) {
+    const rows = await this.sql`SELECT character, points FROM quiz_users WHERE character = ${character} LIMIT 1`;
     if (!rows.length) return { ok:false, error:'NOT_FOUND' };
     const u = rows[0];
-    if (u.password !== password) return { ok:false, error:'BAD_PASSWORD' };
     return { ok:true, user:{ character:u.character, points:Number(u.points||0) } };
   }
 
@@ -137,19 +171,46 @@ class NeonStorage {
     await this.sql`INSERT INTO quiz_questions (question_key, payload) VALUES (${key}, ${JSON.stringify(q)}) ON CONFLICT (question_key) DO NOTHING`;
   }
 
-  async answer({ character, key, isCorrect }) {
-    const rows = await this.sql`SELECT last_answered_key, points FROM quiz_users WHERE character = ${character} LIMIT 1`;
+  async answer({ character, key, questionIndex, isCorrect }) {
+    if (!Number.isInteger(questionIndex) || questionIndex < 0 || questionIndex > 2) return { ok:false, error:'BAD_QUESTION_INDEX' };
+
+    const rows = await this.sql`SELECT points, answered_by_day FROM quiz_users WHERE character = ${character} LIMIT 1`;
     if (!rows.length) return { ok:false, error:'NOT_FOUND' };
+
     const u = rows[0];
-    if (u.last_answered_key === key) return { ok:false, error:'ALREADY_ANSWERED' };
+    const answeredByDay = (u.answered_by_day && typeof u.answered_by_day === 'object') ? u.answered_by_day : {};
+    const day = Array.isArray(answeredByDay[key]) ? answeredByDay[key] : [false, false, false];
+
+    if (day[questionIndex]) return { ok:false, error:'ALREADY_ANSWERED' };
+
+    day[questionIndex] = true;
+    answeredByDay[key] = day;
     const newPoints = Number(u.points||0) + (isCorrect ? 1 : 0);
-    await this.sql`UPDATE quiz_users SET last_answered_key = ${key}, points = ${newPoints} WHERE character = ${character}`;
-    return { ok:true, points:newPoints };
+
+    await this.sql`UPDATE quiz_users SET points = ${newPoints}, answered_by_day = ${JSON.stringify(answeredByDay)} WHERE character = ${character}`;
+
+    return {
+      ok:true,
+      points:newPoints,
+      answered: day,
+      answeredCount: day.filter(Boolean).length
+    };
   }
 
-  async hasAnswered(character, key) {
-    const rows = await this.sql`SELECT last_answered_key FROM quiz_users WHERE character = ${character} LIMIT 1`;
-    return rows.length ? rows[0].last_answered_key === key : false;
+  async hasAnswered(character, key, questionIndex) {
+    const rows = await this.sql`SELECT answered_by_day FROM quiz_users WHERE character = ${character} LIMIT 1`;
+    if (!rows.length) return false;
+    const byDay = rows[0].answered_by_day || {};
+    const day = Array.isArray(byDay[key]) ? byDay[key] : [false, false, false];
+    if (Number.isInteger(questionIndex)) return Boolean(day[questionIndex]);
+    return day.every(Boolean);
+  }
+
+  async getProgress(character, key) {
+    const rows = await this.sql`SELECT answered_by_day FROM quiz_users WHERE character = ${character} LIMIT 1`;
+    const byDay = rows.length ? (rows[0].answered_by_day || {}) : {};
+    const day = Array.isArray(byDay[key]) ? byDay[key] : [false, false, false];
+    return { answered: day, answeredCount: day.filter(Boolean).length };
   }
 }
 
