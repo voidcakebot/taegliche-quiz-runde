@@ -18,7 +18,7 @@
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
     .char{border:2px solid #56406d;border-radius:10px;padding:10px;text-align:center;cursor:pointer;background:#1a1321}
     .char.active{border-color:#e3c47f}
-    .char.taken{opacity:.7}
+    .char.taken{opacity:.7;text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:#ff6b7a}
     input{width:100%;padding:9px;border-radius:8px;border:1px solid #4f3a60;background:#18111f;color:#fff}
     .leader li{display:flex;justify-content:space-between;border-bottom:1px dashed #4c3961;padding:6px 0}
     #quiz{display:none}
@@ -40,7 +40,9 @@
       <div id="regBox">
         <h3>Choose a character</h3>
         <div id="regChars" class="grid"></div>
-        <label>Password</label><input id="regPw" type="password" maxlength="32" />
+        <div style="margin-top:12px">
+          <label>Password</label><input id="regPw" type="password" maxlength="32" />
+        </div>
         <div style="margin-top:10px;display:flex;justify-content:center"><button class="btn green" onclick="registerAndGo()">Let’s go</button></div>
       </div>
 
