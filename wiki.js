@@ -94,8 +94,54 @@ async function fromOpenTdb() {
   };
 }
 
+const LOCAL_FALLBACK_QUESTIONS = [
+  {
+    prompt: 'Welche Farbe entsteht aus Blau + Gelb?',
+    options: ['Grün', 'Lila', 'Orange', 'Türkis'],
+    correctIndex: 0,
+    sourceTitle: 'local:fallback'
+  },
+  {
+    prompt: 'Wie viele Kontinente gibt es nach gängiger Zählung?',
+    options: ['5', '6', '7', '8'],
+    correctIndex: 2,
+    sourceTitle: 'local:fallback'
+  },
+  {
+    prompt: 'Wie viele Minuten hat eine Stunde?',
+    options: ['50', '55', '60', '65'],
+    correctIndex: 2,
+    sourceTitle: 'local:fallback'
+  },
+  {
+    prompt: 'Welcher Planet ist der Sonne am nächsten?',
+    options: ['Venus', 'Merkur', 'Mars', 'Erde'],
+    correctIndex: 1,
+    sourceTitle: 'local:fallback'
+  },
+  {
+    prompt: 'Wie viele Tage hat eine normale Woche?',
+    options: ['5', '6', '7', '8'],
+    correctIndex: 2,
+    sourceTitle: 'local:fallback'
+  }
+];
+
+function fromLocalFallback() {
+  const item = LOCAL_FALLBACK_QUESTIONS[Math.floor(Math.random() * LOCAL_FALLBACK_QUESTIONS.length)];
+  const correct = item.options[item.correctIndex];
+  const options = shuffle(item.options);
+  return {
+    prompt: item.prompt,
+    options,
+    correctIndex: options.findIndex((x) => x === correct),
+    sourceTitle: item.sourceTitle,
+    createdAt: new Date().toISOString()
+  };
+}
+
 async function generateQuestion() {
-  return (await fromTheTriviaApi()) || (await fromOpenTdb()) || (() => { throw new Error('No quiz provider available'); })();
+  return (await fromTheTriviaApi()) || (await fromOpenTdb()) || fromLocalFallback();
 }
 
 async function generateRound(count = 3) {
