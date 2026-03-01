@@ -28,8 +28,8 @@ module.exports = async function(req,res){
       finished: progress.answeredCount >= 3,
       question: { prompt:q.prompt, options:q.options }
     });
-  } catch {
+  } catch (e) {
     res.statusCode=500;
-    return res.json({ok:false,error:'Could not load daily questions.'});
+    return res.json({ok:false,error:'Could not load daily questions.', detail:String(e?.message || e)});
   }
 };
