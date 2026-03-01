@@ -133,6 +133,8 @@ class NeonStorage {
       )
     `;
     await this.sql`ALTER TABLE quiz_users ADD COLUMN IF NOT EXISTS password TEXT NOT NULL DEFAULT ''`;
+    await this.sql`ALTER TABLE quiz_users ADD COLUMN IF NOT EXISTS points INTEGER NOT NULL DEFAULT 0`;
+    await this.sql`ALTER TABLE quiz_users ADD COLUMN IF NOT EXISTS answered_by_day JSONB NOT NULL DEFAULT '{}'::jsonb`;
     await this.sql`ALTER TABLE quiz_users DROP COLUMN IF EXISTS last_answered_key`;
     await this.sql`DELETE FROM quiz_users WHERE character = ANY(${REMOVED_CHARACTERS})`;
 
