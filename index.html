@@ -30,6 +30,8 @@
     .timer>div{height:100%;background:linear-gradient(90deg,#4fd475,#d2f27a);width:100%}
     .opt{display:block;width:100%;text-align:left;margin:8px 0}
     .row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .nameWithStatus{display:inline-flex;align-items:center;gap:8px}
+    .doneCheck{color:#54d776;font-size:18px;font-weight:900;line-height:1}
   </style>
 </head>
 <body>
@@ -106,14 +108,22 @@ async function boot(){
 
   d.characters.forEach(c=>{
     const taken=d.taken.includes(c);
-    const rc=document.createElement('div'); rc.className='char'+(taken?' taken':''); rc.textContent=c;
+    const doneToday = Boolean(d.completionByCharacter && d.completionByCharacter[c]);
+
+    const rc=document.createElement('div'); rc.className='char'+(taken?' taken':'');
+    rc.innerHTML = doneToday
+      ? `<span class="nameWithStatus"><span>${c}</span><span class="doneCheck" title="Heute 3/3 beantwortet">✅</span></span>`
+      : c;
     if(!taken){
       rc.onclick=()=>{selectedReg=c; [...reg.children].forEach(x=>x.classList.remove('active')); rc.classList.add('active');};
     }
     reg.appendChild(rc);
 
     if(taken){
-      const lc=document.createElement('div'); lc.className='char'; lc.textContent=c;
+      const lc=document.createElement('div'); lc.className='char';
+      lc.innerHTML = doneToday
+        ? `<span class="nameWithStatus"><span>${c}</span><span class="doneCheck" title="Heute 3/3 beantwortet">✅</span></span>`
+        : c;
       lc.onclick=()=>{selectedLogin=c; [...login.children].forEach(x=>x.classList.remove('active')); lc.classList.add('active');};
       login.appendChild(lc);
     }
@@ -123,7 +133,13 @@ async function boot(){
   applyTrioLayout(login);
 
   const lb=document.getElementById('leaderboard');
-  lb.innerHTML = d.leaderboard.length ? d.leaderboard.map(x=>`<li><span>${x.character}</span><b>${x.points} pts</b></li>`).join('') : '<li>No points yet.</li>';
+  lb.innerHTML = d.leaderboard.length ? d.leaderboard.map(x=>{
+    const doneToday = Boolean(d.completionByCharacter && d.completionByCharacter[x.character]);
+    const name = doneToday
+      ? `<span class="nameWithStatus"><span>${x.character}</span><span class="doneCheck" title="Heute 3/3 beantwortet">✅</span></span>`
+      : `<span>${x.character}</span>`;
+    return `<li>${name}<b>${x.points} pts</b></li>`;
+  }).join('') : '<li>No points yet.</li>';
 }
 
 async function registerAndGo(){

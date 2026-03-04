@@ -47,7 +47,16 @@ async function handler(req,res){
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   if (url.pathname === '/api/bootstrap' && req.method === 'GET') {
-    return send(res,200,{ ok:true, ...(await storage.bootstrap()) });
+    const base = await storage.bootstrap();
+    const todayKey = berlinKeyNow();
+    const completionByCharacter = {};
+    await Promise.all(
+      (base.taken || []).map(async (character) => {
+        const progress = await storage.getProgress(character, todayKey);
+        completionByCharacter[character] = Number(progress?.answeredCount || 0) >= 3;
+      })
+    );
+    return send(res,200,{ ok:true, ...base, todayKey, completionByCharacter });
   }
 
   if (url.pathname === '/api/register' && req.method === 'POST') {
