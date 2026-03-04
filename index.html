@@ -108,22 +108,15 @@ async function boot(){
 
   d.characters.forEach(c=>{
     const taken=d.taken.includes(c);
-    const doneToday = Boolean(d.completionByCharacter && d.completionByCharacter[c]);
 
-    const rc=document.createElement('div'); rc.className='char'+(taken?' taken':'');
-    rc.innerHTML = doneToday
-      ? `<span class="nameWithStatus"><span>${c}</span><span class="doneCheck" title="Heute 3/3 beantwortet">✅</span></span>`
-      : c;
+    const rc=document.createElement('div'); rc.className='char'+(taken?' taken':''); rc.textContent=c;
     if(!taken){
       rc.onclick=()=>{selectedReg=c; [...reg.children].forEach(x=>x.classList.remove('active')); rc.classList.add('active');};
     }
     reg.appendChild(rc);
 
     if(taken){
-      const lc=document.createElement('div'); lc.className='char';
-      lc.innerHTML = doneToday
-        ? `<span class="nameWithStatus"><span>${c}</span><span class="doneCheck" title="Heute 3/3 beantwortet">✅</span></span>`
-        : c;
+      const lc=document.createElement('div'); lc.className='char'; lc.textContent=c;
       lc.onclick=()=>{selectedLogin=c; [...login.children].forEach(x=>x.classList.remove('active')); lc.classList.add('active');};
       login.appendChild(lc);
     }
