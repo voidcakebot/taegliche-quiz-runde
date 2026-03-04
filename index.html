@@ -81,7 +81,7 @@
     </section>
   </div>
 <script>
-let mode='reg', selectedReg=null, selectedLogin=null, session=null;
+let mode='login', selectedReg=null, selectedLogin=null, session=null;
 let timerInt=null, left=20, answered=false, currentIndex=0, totalQuestions=3;
 
 function setMode(m){
@@ -242,7 +242,7 @@ async function submitAnswer(choiceIndex, timedOut){
 function nextStep(){ if(!document.getElementById('nextBtn').disabled) loadQuestion(currentIndex + 1); }
 function backHome(){ if(!document.getElementById('homeBtn').disabled){ clearInterval(timerInt); document.getElementById('quiz').style.display='none'; document.getElementById('home').style.display='block'; boot(); } }
 
-boot(); setMode('reg');
+boot(); setMode('login');
 </script>
 </body>
 </html>
