@@ -31,9 +31,15 @@
     .sectionTitle{display:flex;align-items:center;justify-content:space-between;margin-top:14px;margin-bottom:8px}
     .sectionTitle h3{margin:0}
     .pill{font-size:12px;padding:4px 8px;border-radius:999px;background:#352547;border:1px solid #644a80;color:#e8d9ff}
-    .raceInfo{display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:8px;margin:8px 0 12px}
-    .stat{background:#1b1223;border:1px solid #4e3a63;border-radius:10px;padding:8px}
-    .stat b{display:block;font-size:18px;color:#f6d88a}
+    .raceInfo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:8px 0 12px}
+    .stat{background:#1b1223;border:1px solid #4e3a63;border-radius:10px;padding:10px;min-width:0;overflow:hidden}
+    .stat small{display:block;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .stat b{display:block;font-size:18px;color:#f6d88a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .datePretty{font-size:16px !important;line-height:1.2}
+    @media (max-width: 620px){
+      .raceInfo{grid-template-columns:1fr}
+      .stat b{font-size:16px}
+    }
     .leader{list-style:none;margin:0;padding:0}
     .leader li{display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed #4c3961;padding:8px 0}
     .leader li:last-child{border-bottom:none}
@@ -80,8 +86,8 @@
 
       <div class="sectionTitle"><h3>🏁 Monatsrennen</h3><span class="pill" id="monthPill">Monat</span></div>
       <div class="raceInfo">
-        <div class="stat"><small>Heute</small><b id="todayDate">-</b></div>
-        <div class="stat"><small>Monatsende</small><b id="monthEndDate">-</b></div>
+        <div class="stat"><small>Heute</small><b id="todayDate" class="datePretty">-</b></div>
+        <div class="stat"><small>Monatsende</small><b id="monthEndDate" class="datePretty">-</b></div>
         <div class="stat"><small>Verbleibend</small><b id="daysLeft">-</b></div>
       </div>
       <p id="monthInfo" style="margin:6px 0 10px;opacity:.9"></p>
@@ -153,6 +159,15 @@ function setMode(m){
   document.getElementById('mLogin').classList.toggle('active', m==='login');
 }
 
+function prettyDate(iso){
+  const s = String(iso || '').trim();
+  if (!s) return '-';
+  const [y,m,d] = s.split('-').map(Number);
+  if (!y || !m || !d) return s;
+  const dt = new Date(Date.UTC(y, m-1, d));
+  return new Intl.DateTimeFormat('de-DE', { weekday:'short', day:'2-digit', month:'2-digit', year:'numeric', timeZone:'Europe/Berlin' }).format(dt);
+}
+
 function applyTrioLayout(container){
   container.classList.remove('trio');
   [...container.children].forEach(el=>el.classList.remove('third'));
@@ -206,8 +221,8 @@ async function boot(){
   const days = Number(d.month?.daysRemaining ?? 0);
   const end = String(d.month?.monthEndsAt || '');
 
-  document.getElementById('todayDate').textContent = String(d.month?.today || '-');
-  document.getElementById('monthEndDate').textContent = end || '-';
+  document.getElementById('todayDate').textContent = prettyDate(String(d.month?.today || ''));
+  document.getElementById('monthEndDate').textContent = prettyDate(end);
   document.getElementById('daysLeft').textContent = `${days} Tage`;
   document.getElementById('monthPill').textContent = String(d.monthKey || 'Monat');
 
