@@ -43,14 +43,44 @@ function decodeHtml(str = '') {
 
 function pickWeightedCategory() {
   const r = Math.random();
-  if (r < 0.50) return 'general_knowledge';
-  if (r < 0.75) return 'history';
+  if (r < 0.40) return 'general_knowledge';
+  if (r < 0.80) return 'history';
   return 'science';
+}
+
+async function translateToGerman(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return raw;
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=de&dt=t&q=${encodeURIComponent(raw)}`;
+  const r = await fetch(url, { headers: { accept: 'application/json' } });
+  if (!r.ok) return null;
+  const j = await r.json();
+  const translated = Array.isArray(j?.[0]) ? j[0].map((x)=>x?.[0] || '').join('') : '';
+  return String(translated || '').trim() || null;
+}
+
+async function translateQuestionToGerman(question) {
+  if (!question) return null;
+  const promptDe = await translateToGerman(question.prompt);
+  if (!promptDe) return null;
+
+  const translatedOptions = [];
+  for (const opt of (question.options || [])) {
+    const t = await translateToGerman(opt);
+    if (!t) return null;
+    translatedOptions.push(t);
+  }
+
+  return {
+    ...question,
+    prompt: promptDe,
+    options: translatedOptions
+  };
 }
 
 async function fromTheTriviaApi() {
   const c = pickWeightedCategory();
-  const url = `https://the-trivia-api.com/v2/questions?limit=1&categories=${encodeURIComponent(c)}&difficulties=easy,medium`;
+  const url = `https://the-trivia-api.com/v2/questions?limit=1&categories=${encodeURIComponent(c)}&difficulties=medium`;
   const r = await fetch(url, { headers: { accept: 'application/json' } });
   if (!r.ok) return null;
   const arr = await r.json();
@@ -62,13 +92,15 @@ async function fromTheTriviaApi() {
   const correctIndex = options.findIndex((x) => x === correct);
   if (correctIndex < 0) return null;
 
-  return {
+  const question = {
     prompt: decodeHtml(q.question.text),
     options,
     correctIndex,
     sourceTitle: `TheTriviaAPI:${c}`,
     createdAt: new Date().toISOString()
   };
+
+  return await translateQuestionToGerman(question);
 }
 
 async function fromOpenTdb() {
@@ -85,13 +117,15 @@ async function fromOpenTdb() {
   const correctIndex = options.findIndex((x) => x === correct);
   if (correctIndex < 0) return null;
 
-  return {
+  const question = {
     prompt: q,
     options,
     correctIndex,
     sourceTitle: `OpenTDB:${item.category || 'mixed'}`,
     createdAt: new Date().toISOString()
   };
+
+  return await translateQuestionToGerman(question);
 }
 
 const LOCAL_FALLBACK_QUESTIONS = [
