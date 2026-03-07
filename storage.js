@@ -8,10 +8,20 @@ const CHARACTERS = [
   'Durchfallman'
 ];
 
+function berlinMonthKeyNow() {
+  const dtf = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric', month: '2-digit'
+  });
+  const parts = Object.fromEntries(dtf.formatToParts(new Date()).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
+  return `${parts.year}-${parts.month}`;
+}
+
 function normalizeUser(u = {}) {
   return {
     password: String(u.password || ''),
     points: Number(u.points || 0),
+    pointsByMonth: typeof u.pointsByMonth === 'object' && u.pointsByMonth ? u.pointsByMonth : {},
     createdAt: u.createdAt || new Date().toISOString(),
     answeredByDay: typeof u.answeredByDay === 'object' && u.answeredByDay ? u.answeredByDay : {},
     // legacy fields kept for compatibility
@@ -38,11 +48,16 @@ class FileStorage {
   async bootstrap() {
     const s = this.load();
     const taken = Object.keys(s.users);
+    const monthKey = berlinMonthKeyNow();
     const leaderboard = Object.entries(s.users)
       .map(([character, u]) => ({ character, points: Number(u.points || 0) }))
       .sort((a,b)=>b.points-a.points)
       .slice(0, 20);
-    return { characters: CHARACTERS, taken, leaderboard };
+    const monthlyLeaderboard = Object.entries(s.users)
+      .map(([character, u]) => ({ character, points: Number((u.pointsByMonth || {})[monthKey] || 0) }))
+      .sort((a,b)=>b.points-a.points)
+      .slice(0, 20);
+    return { characters: CHARACTERS, taken, leaderboard, monthlyLeaderboard, monthKey };
   }
 
   async register({ character, password }) {
@@ -82,7 +97,12 @@ class FileStorage {
     day[questionIndex] = true;
     u.answeredByDay[key] = day;
 
-    if (isCorrect) u.points = Number(u.points||0) + 1;
+    if (isCorrect) {
+      u.points = Number(u.points||0) + 1;
+      const monthKey = String(key || '').slice(0,7);
+      u.pointsByMonth ||= {};
+      u.pointsByMonth[monthKey] = Number(u.pointsByMonth[monthKey] || 0) + 1;
+    }
     s.users[character] = normalizeUser(u);
     this.save(s);
 
@@ -114,7 +134,7 @@ class FileStorage {
     return { ok: true };
   }
 
-  async upsertUserState({ character, password, points, answeredByDay }) {
+  async upsertUserState({ character, password, points, answeredByDay, pointsByMonth }) {
     const s = this.load();
     if (!CHARACTERS.includes(character)) return { ok:false, error:'UNKNOWN_CHARACTER' };
     const existing = normalizeUser(s.users[character] || {});
@@ -122,6 +142,7 @@ class FileStorage {
       ...existing,
       password: String(password ?? existing.password ?? ''),
       points: Number.isFinite(Number(points)) ? Number(points) : Number(existing.points || 0),
+      pointsByMonth: (pointsByMonth && typeof pointsByMonth === 'object') ? pointsByMonth : (existing.pointsByMonth || {}),
       answeredByDay: (answeredByDay && typeof answeredByDay === 'object') ? answeredByDay : (existing.answeredByDay || {})
     });
     this.save(s);
@@ -142,12 +163,14 @@ class NeonStorage {
         character TEXT PRIMARY KEY,
         password TEXT NOT NULL DEFAULT '',
         points INTEGER NOT NULL DEFAULT 0,
+        points_by_month JSONB NOT NULL DEFAULT '{}'::jsonb,
         answered_by_day JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
     await this.sql`ALTER TABLE quiz_users ADD COLUMN IF NOT EXISTS password TEXT NOT NULL DEFAULT ''`;
     await this.sql`ALTER TABLE quiz_users ADD COLUMN IF NOT EXISTS points INTEGER NOT NULL DEFAULT 0`;
+    await this.sql`ALTER TABLE quiz_users ADD COLUMN IF NOT EXISTS points_by_month JSONB NOT NULL DEFAULT '{}'::jsonb`;
     await this.sql`ALTER TABLE quiz_users ADD COLUMN IF NOT EXISTS answered_by_day JSONB NOT NULL DEFAULT '{}'::jsonb`;
     await this.sql`ALTER TABLE quiz_users DROP COLUMN IF EXISTS last_answered_key`;
     await this.sql`DELETE FROM quiz_users WHERE character = ANY(${REMOVED_CHARACTERS})`;
@@ -162,12 +185,18 @@ class NeonStorage {
   }
 
   async bootstrap() {
-    const rows = await this.sql`SELECT character, points FROM quiz_users ORDER BY points DESC, character ASC LIMIT 20`;
+    const rows = await this.sql`SELECT character, points, points_by_month FROM quiz_users ORDER BY points DESC, character ASC LIMIT 20`;
     const takenRows = await this.sql`SELECT character FROM quiz_users`;
+    const monthKey = berlinMonthKeyNow();
+    const monthlyLeaderboard = rows
+      .map(r=>({ character:r.character, points:Number((r.points_by_month || {})[monthKey] || 0) }))
+      .sort((a,b)=>b.points-a.points);
     return {
       characters: CHARACTERS,
       taken: takenRows.map(r=>r.character),
-      leaderboard: rows.map(r=>({ character:r.character, points:Number(r.points||0) }))
+      leaderboard: rows.map(r=>({ character:r.character, points:Number(r.points||0) })),
+      monthlyLeaderboard,
+      monthKey
     };
   }
 
@@ -202,7 +231,7 @@ class NeonStorage {
   async answer({ character, key, questionIndex, isCorrect }) {
     if (!Number.isInteger(questionIndex) || questionIndex < 0 || questionIndex > 2) return { ok:false, error:'BAD_QUESTION_INDEX' };
 
-    const rows = await this.sql`SELECT points, answered_by_day FROM quiz_users WHERE character = ${character} LIMIT 1`;
+    const rows = await this.sql`SELECT points, points_by_month, answered_by_day FROM quiz_users WHERE character = ${character} LIMIT 1`;
     if (!rows.length) return { ok:false, error:'NOT_FOUND' };
 
     const u = rows[0];
@@ -214,8 +243,13 @@ class NeonStorage {
     day[questionIndex] = true;
     answeredByDay[key] = day;
     const newPoints = Number(u.points||0) + (isCorrect ? 1 : 0);
+    const pointsByMonth = (u.points_by_month && typeof u.points_by_month === 'object') ? u.points_by_month : {};
+    if (isCorrect) {
+      const monthKey = String(key || '').slice(0,7);
+      pointsByMonth[monthKey] = Number(pointsByMonth[monthKey] || 0) + 1;
+    }
 
-    await this.sql`UPDATE quiz_users SET points = ${newPoints}, answered_by_day = ${JSON.stringify(answeredByDay)} WHERE character = ${character}`;
+    await this.sql`UPDATE quiz_users SET points = ${newPoints}, points_by_month = ${JSON.stringify(pointsByMonth)}, answered_by_day = ${JSON.stringify(answeredByDay)} WHERE character = ${character}`;
 
     return {
       ok:true,
@@ -246,15 +280,16 @@ class NeonStorage {
     return { ok: true };
   }
 
-  async upsertUserState({ character, password, points, answeredByDay }) {
+  async upsertUserState({ character, password, points, answeredByDay, pointsByMonth }) {
     if (!CHARACTERS.includes(character)) return { ok:false, error:'UNKNOWN_CHARACTER' };
     await this.sql`
-      INSERT INTO quiz_users (character, password, points, answered_by_day)
-      VALUES (${character}, ${String(password || '')}, ${Number(points || 0)}, ${JSON.stringify(answeredByDay || {})})
+      INSERT INTO quiz_users (character, password, points, points_by_month, answered_by_day)
+      VALUES (${character}, ${String(password || '')}, ${Number(points || 0)}, ${JSON.stringify(pointsByMonth || {})}, ${JSON.stringify(answeredByDay || {})})
       ON CONFLICT (character)
       DO UPDATE SET
         password = EXCLUDED.password,
         points = EXCLUDED.points,
+        points_by_month = EXCLUDED.points_by_month,
         answered_by_day = EXCLUDED.answered_by_day
     `;
     return { ok:true };
