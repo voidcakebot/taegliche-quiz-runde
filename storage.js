@@ -134,6 +134,13 @@ class FileStorage {
     return { ok: true };
   }
 
+  async clearQuestions() {
+    const s = this.load();
+    s.questions = {};
+    this.save(s);
+    return { ok: true };
+  }
+
   async upsertUserState({ character, password, points, answeredByDay, pointsByMonth }) {
     const s = this.load();
     if (!CHARACTERS.includes(character)) return { ok:false, error:'UNKNOWN_CHARACTER' };
@@ -277,6 +284,11 @@ class NeonStorage {
 
   async clearUsers() {
     await this.sql`DELETE FROM quiz_users`;
+    return { ok: true };
+  }
+
+  async clearQuestions() {
+    await this.sql`DELETE FROM quiz_questions`;
     return { ok: true };
   }
 

@@ -148,6 +148,17 @@ async function handler(req,res){
     }
   }
 
+  if (url.pathname === '/api/reset-questions' && req.method === 'POST') {
+    try {
+      const p = await readBody(req);
+      if (String(p.confirm || '') !== 'RESET_QUESTIONS') return send(res, 400, { ok:false, error:'Missing confirm token.' });
+      await storage.clearQuestions();
+      return send(res, 200, { ok:true });
+    } catch {
+      return send(res, 500, { ok:false, error:'Question reset failed' });
+    }
+  }
+
   if (url.pathname === '/api/admin-restore-users' && req.method === 'POST') {
     try {
       const p = await readBody(req);

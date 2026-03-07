@@ -16,7 +16,7 @@
     .btn.green{background:#2d8a4d;border-color:#4ac26d}
     .btn.cta{font-size:18px;padding:13px 22px;min-width:170px}
     .btn[disabled]{opacity:.5;cursor:not-allowed}
-    .card{background:#23192c;border:2px solid #3b2b4a;border-radius:14px;padding:12px;margin-top:12px}
+    .card{background:#23192c;border:2px solid #3b2b4a;border-radius:14px;padding:14px;margin-top:12px;box-shadow:0 10px 24px rgba(0,0,0,.22)}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
     .grid.trio{grid-template-columns:repeat(2,minmax(140px,1fr));max-width:420px;margin:0 auto}
     .grid.trio .char.third{grid-column:1 / span 2;justify-self:center;width:48%}
@@ -28,7 +28,15 @@
     .pinWrap{display:flex;flex-direction:column;align-items:center}
     .pinBtn{padding:10px 0;border-radius:10px;border:2px solid #5c4474;background:#2b1f39;color:#fff;font-weight:800;cursor:pointer}
     .pinBtn.wide{grid-column:span 2}
-    .leader li{display:flex;justify-content:space-between;border-bottom:1px dashed #4c3961;padding:6px 0}
+    .sectionTitle{display:flex;align-items:center;justify-content:space-between;margin-top:14px;margin-bottom:8px}
+    .sectionTitle h3{margin:0}
+    .pill{font-size:12px;padding:4px 8px;border-radius:999px;background:#352547;border:1px solid #644a80;color:#e8d9ff}
+    .raceInfo{display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:8px;margin:8px 0 12px}
+    .stat{background:#1b1223;border:1px solid #4e3a63;border-radius:10px;padding:8px}
+    .stat b{display:block;font-size:18px;color:#f6d88a}
+    .leader{list-style:none;margin:0;padding:0}
+    .leader li{display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed #4c3961;padding:8px 0}
+    .leader li:last-child{border-bottom:none}
     #quiz{display:none}
     .timer{height:10px;background:#261d31;border:1px solid #584170;border-radius:999px;overflow:hidden;margin:8px 0}
     .timer>div{height:100%;background:linear-gradient(90deg,#4fd475,#d2f27a);width:100%}
@@ -70,11 +78,16 @@
         <div style="margin-top:10px;display:flex;justify-content:center"><button class="btn green cta" onclick="loginAndGo()">Let’s go</button></div>
       </div>
 
-      <h3>Monatsrennen</h3>
+      <div class="sectionTitle"><h3>🏁 Monatsrennen</h3><span class="pill" id="monthPill">Monat</span></div>
+      <div class="raceInfo">
+        <div class="stat"><small>Heute</small><b id="todayDate">-</b></div>
+        <div class="stat"><small>Monatsende</small><b id="monthEndDate">-</b></div>
+        <div class="stat"><small>Verbleibend</small><b id="daysLeft">-</b></div>
+      </div>
       <p id="monthInfo" style="margin:6px 0 10px;opacity:.9"></p>
       <ul id="monthLeaderboard" class="leader"></ul>
 
-      <h3>Gesamt-Leaderboard</h3>
+      <div class="sectionTitle"><h3>🏆 Gesamt-Leaderboard</h3><span class="pill">All Time</span></div>
       <ul id="leaderboard" class="leader"></ul>
     </section>
 
@@ -184,18 +197,26 @@ async function boot(){
 
   const mlb = document.getElementById('monthLeaderboard');
   const monthRows = Array.isArray(d.monthlyLeaderboard) ? d.monthlyLeaderboard : [];
-  mlb.innerHTML = monthRows.length ? monthRows.map(x=>`<li><span>${x.character}</span><b>${x.points} pts</b></li>`).join('') : '<li>No points yet.</li>';
+  mlb.innerHTML = monthRows.length
+    ? monthRows.map((x,i)=>`<li><span>#${i+1} ${x.character}</span><b>${x.points} pts</b></li>`).join('')
+    : '<li>No points yet.</li>';
 
   const mi = document.getElementById('monthInfo');
   const leader = monthRows[0];
   const days = Number(d.month?.daysRemaining ?? 0);
   const end = String(d.month?.monthEndsAt || '');
+
+  document.getElementById('todayDate').textContent = String(d.month?.today || '-');
+  document.getElementById('monthEndDate').textContent = end || '-';
+  document.getElementById('daysLeft').textContent = `${days} Tage`;
+  document.getElementById('monthPill').textContent = String(d.monthKey || 'Monat');
+
   if (days === 0) {
-    mi.textContent = leader ? `Heute ist Monatsende (${end}). Aktueller Sieger: ${leader.character} mit ${leader.points} Punkten.` : `Heute ist Monatsende (${end}).`; 
+    mi.textContent = leader ? `Finale: ${leader.character} führt mit ${leader.points} Punkten.` : `Heute ist Monatsende (${end}).`; 
   } else {
     mi.textContent = leader
-      ? `Heute: ${d.month?.today}. Noch ${days} Tage bis Monatsende (${end}). Aktuell führt ${leader.character} mit ${leader.points} Punkten.`
-      : `Heute: ${d.month?.today}. Noch ${days} Tage bis Monatsende (${end}).`;
+      ? `Noch ${days} Tage bis Monatsende. Aktuell führt ${leader.character} mit ${leader.points} Punkten.`
+      : `Noch ${days} Tage bis Monatsende (${end}).`;
   }
 }
 
