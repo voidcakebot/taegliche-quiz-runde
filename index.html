@@ -90,7 +90,6 @@
         <div class="stat"><small>Monatsende</small><b id="monthEndDate" class="datePretty">-</b></div>
         <div class="stat"><small>Verbleibend</small><b id="daysLeft">-</b></div>
       </div>
-      <p id="monthInfo" style="margin:6px 0 10px;opacity:.9"></p>
       <ul id="monthLeaderboard" class="leader"></ul>
 
       <div class="sectionTitle"><h3>🏆 Gesamt-Leaderboard</h3><span class="pill">All Time</span></div>
@@ -216,8 +215,6 @@ async function boot(){
     ? monthRows.map((x,i)=>`<li><span>#${i+1} ${x.character}</span><b>${x.points} pts</b></li>`).join('')
     : '<li>No points yet.</li>';
 
-  const mi = document.getElementById('monthInfo');
-  const leader = monthRows[0];
   const days = Number(d.month?.daysRemaining ?? 0);
   const end = String(d.month?.monthEndsAt || '');
 
@@ -225,14 +222,6 @@ async function boot(){
   document.getElementById('monthEndDate').textContent = prettyDate(end);
   document.getElementById('daysLeft').textContent = `${days} Tage`;
   document.getElementById('monthPill').textContent = String(d.monthKey || 'Monat');
-
-  if (days === 0) {
-    mi.textContent = leader ? `Finale: ${leader.character} führt mit ${leader.points} Punkten.` : `Heute ist Monatsende (${end}).`; 
-  } else {
-    mi.textContent = leader
-      ? `Noch ${days} Tage bis Monatsende. Aktuell führt ${leader.character} mit ${leader.points} Punkten.`
-      : `Noch ${days} Tage bis Monatsende (${end}).`;
-  }
 }
 
 async function registerAndGo(){
