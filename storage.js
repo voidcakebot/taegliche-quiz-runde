@@ -141,6 +141,16 @@ class FileStorage {
     return { ok: true };
   }
 
+  async addBonusPoint(character) {
+    const s = this.load();
+    const u = s.users[character];
+    if (!u) return { ok:false, error:'NOT_FOUND' };
+    u.points = Number(u.points || 0) + 1;
+    s.users[character] = normalizeUser(u);
+    this.save(s);
+    return { ok:true, points: Number(u.points || 0) };
+  }
+
   async upsertUserState({ character, password, points, answeredByDay, pointsByMonth }) {
     const s = this.load();
     if (!CHARACTERS.includes(character)) return { ok:false, error:'UNKNOWN_CHARACTER' };
@@ -290,6 +300,12 @@ class NeonStorage {
   async clearQuestions() {
     await this.sql`DELETE FROM quiz_questions`;
     return { ok: true };
+  }
+
+  async addBonusPoint(character) {
+    const rows = await this.sql`UPDATE quiz_users SET points = points + 1 WHERE character = ${character} RETURNING points`;
+    if (!rows.length) return { ok:false, error:'NOT_FOUND' };
+    return { ok:true, points:Number(rows[0].points || 0) };
   }
 
   async upsertUserState({ character, password, points, answeredByDay, pointsByMonth }) {
