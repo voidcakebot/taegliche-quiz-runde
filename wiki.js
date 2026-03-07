@@ -174,8 +174,21 @@ function fromLocalFallback() {
   };
 }
 
+async function ensureGermanQuestion(question) {
+  if (!question) return null;
+  if (!question.prompt || !Array.isArray(question.options) || question.options.length !== 4) return null;
+
+  // Always run a final German pass so we never serve non-German text.
+  const q = await translateQuestionToGerman(question);
+  if (q && q.prompt && Array.isArray(q.options) && q.options.length === 4) return q;
+
+  // Last resort: guaranteed German local fallback.
+  return fromLocalFallback();
+}
+
 async function generateQuestion() {
-  return (await fromTheTriviaApi()) || (await fromOpenTdb()) || fromLocalFallback();
+  const candidate = (await fromTheTriviaApi()) || (await fromOpenTdb()) || fromLocalFallback();
+  return await ensureGermanQuestion(candidate);
 }
 
 async function generateRound(count = 3) {
