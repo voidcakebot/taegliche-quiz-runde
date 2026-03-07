@@ -140,6 +140,28 @@ async function handler(req,res){
     }
   }
 
+  if (url.pathname === '/api/admin-restore-users' && req.method === 'POST') {
+    try {
+      const p = await readBody(req);
+      if (String(p.confirm || '') !== 'RESTORE_USERS') return send(res, 400, { ok:false, error:'Missing confirm token.' });
+      const users = Array.isArray(p.users) ? p.users : [];
+      const todayKey = berlinKeyNow();
+      for (const u of users) {
+        const character = String(u.character || '').trim();
+        const pin = String(u.pin || '').trim();
+        const points = Number(u.points || 0);
+        const answeredToday = Boolean(u.answeredToday);
+        if (!/^\d{4}$/.test(pin)) return send(res, 400, { ok:false, error:`Invalid PIN for ${character || 'user'}` });
+        const answeredByDay = { [todayKey]: answeredToday ? [true,true,true] : [false,false,false] };
+        const r = await storage.upsertUserState({ character, password: pin, points, answeredByDay });
+        if (!r.ok) { const [c,m]=mapErr(r.error); return send(res,c,{ok:false,error:m}); }
+      }
+      return send(res, 200, { ok:true, users: users.length, todayKey });
+    } catch {
+      return send(res, 500, { ok:false, error:'Restore failed' });
+    }
+  }
+
   const filePath = url.pathname === '/' ? path.join(__dirname, 'index.html') : path.join(__dirname, url.pathname.replace(/^\//,''));
   if (!filePath.startsWith(__dirname) || !fs.existsSync(filePath)) return send(res,404,'Not found','text/plain');
   const ext = path.extname(filePath);

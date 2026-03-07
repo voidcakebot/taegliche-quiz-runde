@@ -113,6 +113,20 @@ class FileStorage {
     this.save(s);
     return { ok: true };
   }
+
+  async upsertUserState({ character, password, points, answeredByDay }) {
+    const s = this.load();
+    if (!CHARACTERS.includes(character)) return { ok:false, error:'UNKNOWN_CHARACTER' };
+    const existing = normalizeUser(s.users[character] || {});
+    s.users[character] = normalizeUser({
+      ...existing,
+      password: String(password ?? existing.password ?? ''),
+      points: Number.isFinite(Number(points)) ? Number(points) : Number(existing.points || 0),
+      answeredByDay: (answeredByDay && typeof answeredByDay === 'object') ? answeredByDay : (existing.answeredByDay || {})
+    });
+    this.save(s);
+    return { ok:true };
+  }
 }
 
 
@@ -230,6 +244,20 @@ class NeonStorage {
   async clearUsers() {
     await this.sql`DELETE FROM quiz_users`;
     return { ok: true };
+  }
+
+  async upsertUserState({ character, password, points, answeredByDay }) {
+    if (!CHARACTERS.includes(character)) return { ok:false, error:'UNKNOWN_CHARACTER' };
+    await this.sql`
+      INSERT INTO quiz_users (character, password, points, answered_by_day)
+      VALUES (${character}, ${String(password || '')}, ${Number(points || 0)}, ${JSON.stringify(answeredByDay || {})})
+      ON CONFLICT (character)
+      DO UPDATE SET
+        password = EXCLUDED.password,
+        points = EXCLUDED.points,
+        answered_by_day = EXCLUDED.answered_by_day
+    `;
+    return { ok:true };
   }
 }
 
